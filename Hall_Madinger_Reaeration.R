@@ -11,7 +11,8 @@ library(tidyr)
 ardata <- read_csv("/Users/kellyloria/Documents/UNR/Reaeration/SOP_literature/bg-15-3085-2018-supplement/Argon\ supplement/ardata.csv")
 sf6data <- read_csv("/Users/kellyloria/Documents/UNR/Reaeration/SOP_literature/bg-15-3085-2018-supplement/Argon\ supplement/sf6data.csv")
 
-#First need to calculate saturation concentrations. These are based on Hamme and Emerson (2004)
+# First need to calculate saturation concentrations. 
+# These are based on Hamme and Emerson (2004)
 watdens<-function(temp){
   
   t<-temp
@@ -55,11 +56,11 @@ arsat<- function(temp, bp) {
   watdens(temp)*satar*(39.948/1000)##converts umol/kg to mg/L
 }
 
+
 ## Estimates K600 for KO2 at a given temperature. From Wanninkhof (1992).
 K600fromO2<-function (temp, KO2) {
   ((600/(1800.6 - (120.1 * temp) + (3.7818 * temp^2) - (0.047608 * temp^3)))^-0.5) * KO2
 }
-
 
 
 ## Estimates K600 for KAr at a given temperature. From Raymond et al  (2012).
@@ -67,8 +68,7 @@ K600fromAr<-function (temp, KAr) {
   ((600/(1799 - (106.96 * temp) + (2.797 * temp^2) - (0.0289 * temp^3)))^-0.5) * KAr
 }
 
-#ardata$arnsat <- arsat(ardata$temp,ardata$pressure) / nsat(ardata$temp,ardata$pressure)
-
+###
 ardata$arnsat <- arsat(ardata$temp,ardata$pressure) / nsat(ardata$temp,ardata$pressure)
 ardatapre<- ardata[ardata$type=='pre', ]
 ardatapost<- ardata[ardata$type=='post', ]
@@ -81,7 +81,7 @@ sf6datapost<- sf6data[sf6data$type=='post', ]
 #The upper line is the warmer, pleateau collection temperature.
 
 plot <- ggplot(data = ardata, aes(stationcorr, arncalc, color = as.factor(type)))+
-  geom_point(size= 3, alpha = 0.6)+
+  geom_point(size= 1, alpha = 0.6)+
   theme_bw() + 
   theme(axis.text=element_text(size=18),
         axis.title=element_text(size=20),
@@ -94,18 +94,26 @@ plot <- ggplot(data = ardata, aes(stationcorr, arncalc, color = as.factor(type))
 ardatapost$arcorr<- ardatapost$arncalc - ardatapost$arnsat
 
 #2.2.  Calc mean of all pre cond by station and by site
-ardataprecond <- ardatapre %>% group_by(Trial, stationcorr) %>% summarise(precond=mean(cond, na.rm=T))
+ardataprecond <- ardatapre %>% 
+  group_by(Trial, stationcorr) %>%  # not really sure why station cor instead of station ?
+  summarise(precond=mean(cond, na.rm=T)) # cond = SPC
 
 #join with the post cond
 ardatapost<-merge(ardatapost,ardataprecond)
+hist(ardatapost$cond)
 
 ardatapost$condcor<- ardatapost$cond - ardatapost$precond
+hist(ardatapost$condcor)
 
 ardatapost$arcond<- ardatapost$arcorr / ardatapost$condcor
+hist(ardatapost$arcorr)
+hist(ardatapost$arcond)
 
 ##calc the mean for station 0
 ardatapost_0<-ardatapost[ardatapost$stationcorr==0,]
-ardata_0sum <- ardatapost_0 %>% group_by(Trial) %>% summarise(arcond_0=mean(arcond), arn_enrich=mean(arncalc/arnsat))
+ardata_0sum <- ardatapost_0 %>% 
+  group_by(Trial) %>% 
+  summarise(arcond_0=mean(arcond), arn_enrich=mean(arncalc/arnsat))
 
 
 #join with ardatapost
@@ -116,7 +124,9 @@ ardatapost$arcondnorm<-ardatapost$arcond/ardatapost$arcond_0
 ############################
 # Prep SF6 in same way
 #2.2.  Calc mean of all pre cond by station and by site
-ardataprecond <- ardatapre %>% group_by(Trial, stationcorr) %>% summarise(precond=mean(cond, na.rm=T))
+ardataprecond <- ardatapre %>% 
+  group_by(Trial, stationcorr) %>% 
+  summarise(precond=mean(cond, na.rm=T))
 
 #join with the post cond
 sf6datapost<-merge(sf6datapost,ardataprecond) #yes, using pre from Ar
@@ -235,11 +245,10 @@ asum<-arfitsum[1:8,c("2.5%", "50%", "97.5%")]
 
 ksum<-(arfitsum[12:19,c("2.5%", "50%", "97.5%")])*0.01# the 0.01 here rescales the k estimate
 
-#Essentailly we are using the model output to peredict a new set of data which we compare with our actual data.
+#. Essentailly we are using the model output to peredict a new set of data which we compare with our actual data.
 
 ar_tildesum<- summary(arfit, pars="ar_tilde", probs=0.5)$summary
 ar_tildesum<-ar_tildesum[,4]
-
 
 sf6_tildesum<- summary(arfit, pars="sf6_tilde", probs=0.5)$summary
 sf6_tildesum<-sf6_tildesum[,4]
@@ -254,7 +263,10 @@ plot(sf6datapost$sf6condnorm, sf6_tildesum, xlab="Measured normalized SF6 concen
 streamslope<-c( 0.00703, 0.00703,0.015,0.015, 0.06, 0.11,0.12,0.12)
 Q<- c(0.084,0.07,0.02,0.02,0.021,0.097,0.022,0.022)*60
 w<- c(2.3,1.6,0.8,0.8,0.9,3.3,0.7,1.3)
-ardataposttemp<-ardatapost %>% group_by(Trial) %>% summarise(temp=mean(temp, na.rm=T))
+
+ardataposttemp<-ardatapost %>% 
+  group_by(Trial) %>% 
+  summarise(temp=mean(temp, na.rm=T))
 k<- ksum*Q*1440/w
 k600<-K600fromAr(ardataposttemp$temp, k)
 v<-c(12,15.4,9.5,9.5,3.1,4,6.3,5.2)
