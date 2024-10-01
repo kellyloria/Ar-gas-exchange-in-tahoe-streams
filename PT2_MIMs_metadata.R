@@ -5,9 +5,11 @@
 
 setwd("/Users/kellyloria/Documents/UNR/Reaeration/MIMS_dat/")
 ###
-proc_dat <- read.csv("2024_KAL_prelimdat_processed.csv")
+proc_dat <- read.csv("2024_KAL_prelimdat_processed.csv")%>%
+  dplyr::select("Samp", "SampleID", "Pressure", "N2.Ar", )
+
 meta_dat <- read.csv("kelly_prelim_sample_metadata.csv") %>%
-  mutate(SampleID=as.character(MIMs_label))
+  mutate(Samp=as.integer(MIMs_label))
 
 head(proc_dat)
 # 
@@ -44,17 +46,23 @@ head(proc_dat)
 #             
             
 ## 2. Merge with metadata 
-meta_datq <- meta_dat%>%
-  full_join(proc_dat, by = c("SampleID"))
+meta_datq <- proc_dat%>%
+  full_join(meta_dat, by = c("Samp"))
 
 ## Look at some values with distance from injection:
 meta_datq %>%
   filter(site=="GBL" & sample_type=="POST")%>%
-  ggplot(aes(x = distance, y = c(X40/X28) , color = sample_type, shape=sample_rep)) +
+  ggplot(aes(x = Station, y = c(X40/X28) , color = sample_type, shape=sample_rep)) +
   geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") 
 
 
+
+########
+# You are here:
+######## 
+
 meta_datq$Ar.N2_KL <- (meta_datq$X40/meta_datqX28)
+
 meta_datq %>%
   filter(site=="BWL")%>%
   ggplot(aes(x = distance, y = N2.ArSat_m , color = sample_type, shape=sample_rep)) +

@@ -18,8 +18,10 @@ setwd("/Users/kellyloria/Documents/UNR/Reaeration/MIMS_dat/")
 MIMSdata <- "kelly_prelim_argon_31july24_KAL.xlsx"
 rawFile <- "Kelly_rawdat_20240801.csv"
 
+
+
 # rename for each save:
-saveFile <- "2024_KAL_prelimdat_processed.csv.csv"
+saveFile <- "2024_KAL_prelimdat_processed_09.csv"
 pressure <- "inHg"
 #pressure <- "mmHg"
 source("mims_gas_functions_wHeKr.r")
