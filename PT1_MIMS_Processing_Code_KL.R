@@ -24,7 +24,7 @@ rawFile <- "Kelly_rawdat_20240801.csv"
 saveFile <- "2024_KAL_prelimdat_processed_09.csv"
 pressure <- "inHg"
 #pressure <- "mmHg"
-source("mims_gas_functions_wHeKr.r")
+source("/Users/kellyloria/Documents/UNR/Reaeration/AR_code_repo/mims_gas_functions_wHeKr.R")
 ##########################################################################################
 
 

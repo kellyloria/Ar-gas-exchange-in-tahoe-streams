@@ -18,6 +18,8 @@ proc_dat <- read.csv("2024_KAL_prelimdat_processed.csv")%>%
                 "WatDens", "O2Sat", "N2Sat", "ArSat",
                 "O2.ArSat", "N2.ArSat", "X40", "X28", "X32")
 
+proc_dat$arncalc <- c(1/proc_dat$N2.Ar)
+
 meta_dat <- read.csv("kelly_prelim_sample_metadata.csv") %>%
   mutate(Samp=as.integer(MIMs_label))
             
@@ -31,6 +33,24 @@ ar_data %>%
   ggplot(aes(x = Station, y = (ArSat) , color = sample_type, shape=sample_rep)) +
   geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") 
 
+ar_data %>%
+  filter(trial=="4")%>%
+  ggplot(aes(x = Station, y = (N2.ArSat) , color = sample_type, shape=sample_rep)) +
+  geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") 
+
+
+ar_data %>%
+  filter(trial=="4")%>%
+  ggplot(aes(x = Station, y = 1/(N2.Ar) , color = sample_type, shape=sample_rep)) +
+  geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") 
+
+ar_data %>%
+  filter(trial=="4")%>%
+  ggplot(aes(x = Station, y = 1/(X28/X40) , color = sample_type, shape=sample_rep)) +
+  geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") 
+
+
+
 # Station 3 D looking weird 
 # Station 7 B also not great lets trim those 
 ### Fix this 
@@ -38,12 +58,8 @@ ar_data %>%
 # ar_data <-ar_data %>%
 #   filter(ArSat< 0.60)
 
-# ar_data %>%
-#   ggplot(aes(x = Station, y = (ArSat) , color = sample_type, shape=sample_rep)) +
-#   geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") 
-
-
-# here "ArSat" is "arncalc" from 
+# Still trying to work out what "arncalc" should be. Possibly it's ArSat but it may need to be calculated as the inverse?
+# c(N2.Ar) coming from X28/X40 in other data sheet 
 # link: "./SOP_literature/bg-15-3085-2018-supplement/Argon%20supplement/Arcode.html"
 
 
@@ -58,12 +74,13 @@ K600fromAr<-function (temp, KAr) {
 }
 
 ##
+##
 ar_data$arnsat <- arsat(ar_data$temp..C.,ar_data$Pressure) / nsat(ar_data$temp..C.,ar_data$Pressure)
 ar_data_pre<- ar_data%>%filter(sample_type=='PRE ')
 ar_data_post<- ar_data%>%filter(sample_type=='POST')
 
 # Now for calculations where we subtract background and correct for conductivity
-ar_data_post$arcorr<- ar_data_post$ArSat - ar_data_post$arnsat
+ar_data_post$arcorr<- ar_data_post$arncalc - ar_data_post$arnsat
 
 #2.2.  Calc mean of all pre cond by station and by site
 ardataprecond <- ar_data_pre %>% 
