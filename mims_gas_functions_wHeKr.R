@@ -39,18 +39,19 @@
 
 ### Water density of air saturated water given water temperature in degC.  
 ### Source: Paterson and Morris 1994, Meterologia
-
 watdens<-function(temp){
 	
 	t<-temp
-	
+	# coeffs to model temperature and water density
 A <- 7.0132e-5
 B <- 7.926295e-3 
 C <-  -7.575477e-5 
 D<- 7.314701e-7
 E <-  -3.596363e-9
+# max density reference temperature
 to<- 3.9818
 
+# calculates the density of water (in kg/m³) based on the temperature difference to reference temp 
 dens<- (999.97358- (A*(t-to) + B*(t-to)^2 +C*(t-to)^3 + D*(t-to)^4+E*(t-to)^5) ) -4.873e-3 + 1.708e-4*t - 3.108e-6 * t^2
 dens/1000
 }
@@ -67,7 +68,6 @@ watdens(20)
 ### This function gives the same values as from Colt and is the one a MIMSer should use.
 ### u is the vapor pressure of water
 ### Ending units mg/L
-
 osat1<- function(temp, bp) {
 	u<-10^(8.10765-(1750.286/(235+temp)))
 	ts<-log((298.15-temp) / (273.15 + temp))
@@ -91,7 +91,6 @@ osat1(20, 590.2)
 ###########################################
 # Calculate N2 SATURATION w/ Temp and BP
 ###########################################	
-
 ### Nitrogen saturation. From Hamme and Emerson 2004 Deep Sea Res.
 ### Ending units mg/L
 
@@ -116,7 +115,6 @@ nsat(20,760)
 ###########################################
 # Calculate Ar SATURATION w/ Temp and BP
 ###########################################	
-
 ### Argon saturation. From Hamme and Emerson 2004 Deep Sea Res.
 ### Checked against values in Colts table and correct.
 ### Units mg/L   
@@ -142,7 +140,6 @@ arsat(10,760)
 ###########################################
 # Calculate Kr SATURATION w/ Temp and BP
 ###########################################	
-
 ### Krypton saturation. 
 
 ### Units mg/L   
@@ -150,17 +147,20 @@ arsat(10,760)
 
 krsat_83<- function(temp, bp) {
   
-  
+  # Temperature Transformation into scaled logarithmic form (ts)
   T<-(273.15 + temp)
+  # Solubility Coefficients for Argon (ax)
   a0<- -122.4694
   a1<- 153.5654
   a2<-  70.1969
   a3<- -8.5224
   
-  
+  # Water vapor pressure calculation (u)
+  # u reduces the amount of Ar that can be dissolved in water because it takes up some space in the gas phase
   u<-10^(8.10765-(1750.286/(235+temp)))
+  # Ar saturation: the concentration of Ar that would be dissolved in water at a given temperature, barometric pressure, and u 
   satkr<-(exp(a0 + a1*(100/T) + a2*log(T/100) + a3*(T/100)  ))*((bp-u)/(760-u))
-  watdens(temp)*satkr*(83/0.001)####converts mol/kg to mg/L
+  watdens(temp)*satkr*(83/0.001)#### converts Ar from mol/kg to mg/L
 }
 
 
@@ -189,7 +189,6 @@ plot(arsat(Temp, 760) / krsat_83(Temp, 760))
 ###########################################
 # Calculate He SATURATION w/ Temp and BP
 ###########################################	
-
 ### Helium saturation.
 ### Equation from Jenkins et al. 2019
 ### Units mg/L   
@@ -226,7 +225,6 @@ plot(hesat(Temp, 760) / arsat(Temp, 760))
 ###########################################	
 ### Examples of plotting saturation info. 
 ### Plot to see how O2/Ar changes with temp. Note that these are mass and not molar.
-
 temp<- seq(from=0, to=25, by=1)
 #plot(temp, osat1(temp,760)/arsat(temp,760))
 
@@ -275,3 +273,14 @@ KcorAr<-function (temp,K600) {
 fltemp<-c(10,11,12,13,14)
 #nsat(fltemp,638.4)*1000/28
 # [1] 547.5234 535.8124 524.5701 513.7720 503.3951
+
+
+## Estimates K600 for KO2 at a given temperature. From Wanninkhof (1992).
+K600fromO2<-function (temp, KO2) {
+  ((600/(1800.6 - (120.1 * temp) + (3.7818 * temp^2) - (0.047608 * temp^3)))^-0.5) * KO2
+}
+
+## Estimates K600 for KAr at a given temperature. From Raymond et al  (2012).
+K600fromAr<-function (temp, KAr) {
+  ((600/(1799 - (106.96 * temp) + (2.797 * temp^2) - (0.0289 * temp^3)))^-0.5) * KAr
+}

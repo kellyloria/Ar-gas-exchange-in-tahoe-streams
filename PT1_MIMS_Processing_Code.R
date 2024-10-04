@@ -19,21 +19,12 @@ MIMSdata <- "kelly_prelim_argon_31july24_KAL.xlsx"
 rawFile <- "Kelly_rawdat_20240801.csv"
 
 
-
 # rename for each save:
 saveFile <- "2024_KAL_prelimdat_processed_09.csv"
 pressure <- "inHg"
 #pressure <- "mmHg"
 source("/Users/kellyloria/Documents/UNR/Reaeration/AR_code_repo/mims_gas_functions_wHeKr.R")
 ##########################################################################################
-
-
-
-######EDIT THESE
-#
-#
-#
-
 #Formats and reads in the raw files in the best manner for the gather_data function
 read_raw_file <- function(filepath){
   nCols <- max(count.fields(filepath, sep = ','))
@@ -131,7 +122,7 @@ gather_data <- function(excelfile, rawFile) {
 }
 
 avgdData <- gather_data(MIMSdata, rawFile)
-
+str(avgdData)
 
 
 targCols <- c("N2.Ar","He.Ar", "Ar.Kr_83", "Ar.Kr_84", "X40", "X32", "X28", "X4", "X83", "X84")
@@ -271,17 +262,7 @@ saturations <- grep("Sat", colnames(avgdData))
 others <- grep("Conc|Sat|del|Wat|Time", colnames(avgdData), invert = TRUE)
 avgdData <- avgdData[, c(others, saturations, concentrations)]
 
-# J. Krause took this out since I am keeping track of sample metadata separate
-#Make a new date column that give the samples the same collection date
-###Make sure to change the dates for each run
-# avgdData$Date <- as.Date(avgdData$Date)
-# avgdData$StartDate <- avgdData$Date
-# avgdData <- avgdData %>% relocate(StartDate, .after = Date)
-# avgdData[avgdData$StartDate == as.Date("2024-07-30") | avgdData$StartDate == 
-#            as.Date("2024-07-30"), "StartDate"] <- as.Date("2024-07-30")
-
-
-##Saves data to a csv file
+## Saves data to a csv file
 # write.csv(avgdData, saveFile, quote = FALSE)
 
 failTargs <- failTargs[!is.na(failTargs)]
@@ -296,66 +277,6 @@ if(length(failTargs)>0){
                ". Please check column names if you expected this to run."), quote = FALSE)
 }
 
-
-
-
-
-
-
-
-
-
-#STOP!!!!!##################################################
-
-
-
-
-temp_ar<-function(ar, bp){
-  
-  minar<-function(P, ar, bp ) {
-    
-    ts<-log((298.15-P) / (273.15 + P))
-    a0<-2.79150
-    a1<-3.17609
-    a2<-4.13116
-    a3<-4.90379
-    
-    u<-10^(8.10765-(1750.286/(235+P)))
-    satar<-(exp(a0 + a1*ts + a2*ts^2 + a3*ts^3))*((bp-u)/(760-u))
-    arcalc<-watdens(P)*satar*(39.948/1000)##converts umol/kg to mg/L
-    (ar-arcalc)^2
-  }
-  
-  out<-nlm(minar, p=10, ar, bp)
-  out$estimate
-  
-}
-
-#Call as:
-#temp_ar(ar=0.77, bp=760)
-#ar=arsample concentration and BP=barometric pressure of that sample at collection
-
-
-
-ar_prev<-NA
-
-for (i in 1:length (May_28_2020$X40.Conc)){
-  
-  ar_prev[i]<- temp_ar(ar=May_28_2020$X40.Conc[i], bp=May_28_2020$Pressure[i])
-}
-
-May_28_2020$Prev_Temp <- ar_prev
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+####
+# end of temp edit 
+####
