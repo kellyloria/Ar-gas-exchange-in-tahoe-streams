@@ -12,16 +12,12 @@
 library(readxl)
 library(readr)
 library(dplyr)
-setwd("/Users/kellyloria/Documents/UNR/Reaeration/MIMS_dat/")
+# setwd("Users/kellyloria/Documents/UNR/Reaeration/MIMS_dat/")
 
 ######EDIT THESE, and be sure to comment out the pressure line that is wrong for you (whether your pressure is in inHg or mmHg). It currently runs for inHg of pressure.
-MIMSdata <- "kelly_prelim_argon_31july24_KAL.xlsx"
-rawFile <- "Kelly_rawdat_20240801.csv"
+MIMSdata <- "Metadat_argon_241002_v2.xlsx"
+rawFile <- "Raw_argon_241002.csv"
 
-
-# rename for each save:
-saveFile <- "2024_KAL_prelimdat_processed_09.csv"
-pressure <- "inHg"
 #pressure <- "mmHg"
 source("/Users/kellyloria/Documents/UNR/Reaeration/AR_code_repo/mims_gas_functions_wHeKr.R")
 ##########################################################################################
@@ -43,7 +39,6 @@ read_raw_file <- function(filepath){
   range <- c(min(trimmedRead$Index), max(trimmedRead$Index))
   return(list(trimmedRead, range))
 }
-
 
 # Averages data from the raw document
 gather_data <- function(excelfile, rawFile) {
@@ -125,8 +120,9 @@ avgdData <- gather_data(MIMSdata, rawFile)
 str(avgdData)
 
 
+# Make sure the targCols and satCols match up
 targCols <- c("N2.Ar","He.Ar", "Ar.Kr_83", "Ar.Kr_84", "X40", "X32", "X28", "X4", "X83", "X84")
-satCols <- c("N2.ArSat", "He.ArSat", "Ar.KrSat_83", "Ar.KrSat_84", "ArSat", "O2Sat", "N2Sat","HeSat","KrSat_83","KrSat_84") # where is the Ar/O2 
+satCols <- c("N2.ArSat", "He.ArSat", "Ar.KrSat_83", "Ar.KrSat_84", "ArSat", "O2Sat", "N2Sat","HeSat","KrSat_83","KrSat_84")
 #Checks to make sure targCols and satCols are equal lengths (should correspond 1:1)
 if(length(targCols) != length(satCols)){
   print("targCols and satCols need to be the same length.")
@@ -262,20 +258,25 @@ saturations <- grep("Sat", colnames(avgdData))
 others <- grep("Conc|Sat|del|Wat|Time", colnames(avgdData), invert = TRUE)
 avgdData <- avgdData[, c(others, saturations, concentrations)]
 
-## Saves data to a csv file
-# write.csv(avgdData, saveFile, quote = FALSE)
-
 failTargs <- failTargs[!is.na(failTargs)]
 successTargs <- successTargs[!is.na(successTargs)]
 
 print(paste0("Program ran successfully for ", 
              paste(unlist(successTargs), collapse = ", "), 
              "."), quote = FALSE)
-print(paste0("Saved to ", saveFile, "."), quote = FALSE)
-if(length(failTargs)>0){
+print(paste0("Saved to ", saveFile, ".rds"), quote = FALSE)
+if(length(failTargs) > 0){
   print(paste0("Program failed for ", failTargs, 
                ". Please check column names if you expected this to run."), quote = FALSE)
 }
+
+output_path <- paste0("/Users/kellyloria/Documents/UNR/Reaeration/MIMS_dat/processed_dat/")
+# rename for each save:
+saveFile <- "proc_241002.csv"
+pressure <- "inHg"
+
+## Saves data to a csv file
+## write_csv(avgdData, paste0(output_path, saveFile))
 
 ####
 # end of temp edit 
