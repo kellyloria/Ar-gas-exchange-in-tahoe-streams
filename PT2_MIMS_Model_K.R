@@ -106,7 +106,7 @@ ar_data_post <- ar_data_post %>%
 hist(ar_data_post$norm_arncalc)
 
 ardatapost %>% 
-  ggplot(aes(x = Station, y = arcondnorm , color = sample_type, shape=sample_rep)) +
+  ggplot(aes(x = station, y = arcondnorm , color = sample_type, shape=sample_rep)) +
   geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
   facet_wrap(~ site)
 
@@ -180,11 +180,11 @@ model {
 sink()
 
 ## Format data for model:
-# Step 1: Ensure the data is in the correct order by trial and station
 ar_data_post <- ar_data_post %>%
-  arrange(trial, station)
+  arrange(trial, station) %>%
+  filter(trial>0) # filter out the zero sites.
+# see if we need to change station distance 
 
-# Step 2: Create the Stan model input list
 arstandata <- list(
   N = nrow(ar_data_post),  # total number of observations
   nexpt = length(unique(ar_data_post$trial)),  # number of experiments (trials)
