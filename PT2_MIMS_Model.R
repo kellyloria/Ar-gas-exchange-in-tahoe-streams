@@ -68,6 +68,7 @@ ar_data %>%
 ar_data_pre<- ar_data%>%filter(sample_type=='PRE ')
 ar_data_post<- ar_data%>%filter(sample_type=='POST')
 
+## some stuff around SPC corrections, possibly for GW?
 # ## %. Now for calculations where we subtract background and correct for conductivity
 # ar_data_post$arcorr <- ar_data_post$arncalc - ar_data_post$arnsat
 # 
@@ -101,14 +102,6 @@ ar_data_post <- ar_data_post %>%
   ungroup()
 
 hist(ar_data_post$norm_arncalc)
-
-ardatapost %>% 
-  ggplot(aes(x = station, y = arcondnorm , color = sample_type, shape=sample_rep)) +
-  geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
-  facet_wrap(~ site)
-
-## ? HELP ## will I need to adjust distance relationships to 
-## subtract first station meter (12) to the other station distances?
 
 ### 6. Predict Ar based on exponential decay for downstream stations 
 ###################################
@@ -230,7 +223,6 @@ stan_results <- data.frame(
   Kd = Kd_est,
   KAr = KAr_est
 )
-
 
 # Summarize metadata by trial
 trial_metadata <- ar_data_post %>%
