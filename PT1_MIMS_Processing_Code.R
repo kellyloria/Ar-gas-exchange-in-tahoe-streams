@@ -1,25 +1,34 @@
-# KAL made minor edits from Bob Hall et al. workflow 2024-08
+# KAL made minor edits from Bob Hall et al. workflow 2024-10
 
-#Assumes inHg pressure measurements in excel sheet.
-#If mmHg:
-###Go into the `gather_data` function
-###Change the line: press <- mean(sub$Pressure) * 25.4
-###To: press <- mean(sub$Pressure)
-
-#Runs assumming an excel sheet with the following columns, but will run even if some are missing: 
-###N2.Ar, He.Ar, Ar.Kr_83, Ar.Kr_84, X40, X32, X28, X4, X83, X84, X29.28
-###Column names are not case sensitive
 library(readxl)
 library(readr)
 library(dplyr)
+
 # setwd("Users/kellyloria/Documents/UNR/Reaeration/MIMS_dat/")
 
-######EDIT THESE, and be sure to comment out the pressure line that is wrong for you (whether your pressure is in inHg or mmHg). It currently runs for inHg of pressure.
-MIMSdata <- "Metadat_argon_241002_v2.xlsx"
-rawFile <- "Raw_argon_241002.csv"
+## MIMs metadata for selecting parameter data:
+MIMSdata <- "Metadat_argon_241003.xlsx"
+## Notes on MIMS .xlsx formatting:
+##   Sampnum - needs to correspond to the above Calibnum
+##   Samp - is just the order of samples start and stops and so start at 1
+##   SampleID - tracks your meta data for sample type time and collection
+##   Pressure and	Temp need to be recoreded in the room and from from the field conditions at sample collection
+##   Need columns: 28	32	40	99	29	34	30	N2/Ar	O2/Ar	29/28	34/32	30/28 to process even if no data recorded. 
 
-#pressure <- "mmHg"
+## Need to make sure input data for pressure is in inHg:
+##    if not, go into the `gather_data` function
+##    Change the line: press <- mean(sub$Pressure) * 25.4
+##    To: press <- mean(sub$Pressure)
+pressure <- "inHg"
+
+## Call in raw file:
+rawFile <- "Raw_argon_241003.csv"
+
+## name to save processed data:
+saveFile <- "proc_241003.csv"
+
 source("/Users/kellyloria/Documents/UNR/Reaeration/AR_code_repo/mims_gas_functions_wHeKr.R")
+
 ##########################################################################################
 #Formats and reads in the raw files in the best manner for the gather_data function
 read_raw_file <- function(filepath){
@@ -118,7 +127,6 @@ gather_data <- function(excelfile, rawFile) {
 
 avgdData <- gather_data(MIMSdata, rawFile)
 str(avgdData)
-
 
 # Make sure the targCols and satCols match up
 targCols <- c("N2.Ar","He.Ar", "Ar.Kr_83", "Ar.Kr_84", "X40", "X32", "X28", "X4", "X83", "X84")
@@ -270,14 +278,10 @@ if(length(failTargs) > 0){
                ". Please check column names if you expected this to run."), quote = FALSE)
 }
 
-output_path <- paste0("/Users/kellyloria/Documents/UNR/Reaeration/MIMS_dat/processed_dat/")
-# rename for each save:
-saveFile <- "proc_241002.csv"
-pressure <- "inHg"
-
-## Saves data to a csv file
-## write_csv(avgdData, paste0(output_path, saveFile))
+## Saves data to a csv file:
+##    Check save file name for each save:
+# output_path <- paste0("/Users/kellyloria/Documents/UNR/Reaeration/MIMS_dat/processed_dat/")
+# write_csv(avgdData, paste0(output_path, saveFile))
 
 ####
-# end of temp edit 
-####
+# end of script. 
