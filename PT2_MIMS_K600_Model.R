@@ -170,16 +170,19 @@ model {
 sink()
 
 ## Format data for model:
+##   filter data to stations greater than 1 and correct distance 
 ar_data_post <- ar_data_post %>%
   arrange(trial, station) %>%
-  filter(trial>0) # filter out the zero sites.
-# see if we need to change station distance 
+  filter(station > 0) %>%
+  group_by(trial) %>%  
+  mutate(dist = station - station[station_no == 1]) %>% 
+  ungroup() 
 
 arstandata <- list(
   N = nrow(ar_data_post),  # total number of observations
   nexpt = length(unique(ar_data_post$trial)),  # number of experiments (trials)
   exptID = ar_data_post$trial,  # experiment IDs
-  dist = ar_data_post$station,  # distance for each observation (add if necessary)
+  dist = ar_data_post$dist,  # distance of each station
   Ar = ar_data_post$norm_arncalc,  # normalized argon proportion
   Q = ar_data_post %>%
     group_by(trial) %>%
@@ -199,8 +202,8 @@ str(arstandata)
 
 # ## Run the model:
 arfit <- stan(file = "W1_dist_Kt.stan", data = arstandata,
-              iter = 5000, chains = 3,
-              warmup = 2500, thin = 1)
+              iter = 3000, chains = 3,
+              warmup = 1500, thin = 1)
 
 fit_summary <- summary(arfit, probs=c(0.025,0.5,0.975))$summary %>% 
   {as_tibble(.) %>%
