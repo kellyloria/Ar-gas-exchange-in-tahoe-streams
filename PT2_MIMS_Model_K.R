@@ -133,8 +133,6 @@ data {
   
 }
 
-
-
 parameters {
   vector [nexpt] logK600;
   real intercept; //very close to 0
