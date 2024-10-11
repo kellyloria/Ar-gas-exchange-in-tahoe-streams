@@ -25,7 +25,7 @@ pressure <- "inHg"
 rawFile <- "Raw_argon_241003.csv"
 
 ## name to save processed data:
-saveFile <- "proc_241003.csv"
+saveFile <- "proc_241003_v2.csv"
 
 source("/Users/kellyloria/Documents/UNR/Reaeration/AR_code_repo/mims_gas_functions_wHeKr.R")
 
@@ -280,7 +280,8 @@ if(length(failTargs) > 0){
 
 ## Saves data to a csv file:
 ##    Check save file name for each save:
-# output_path <- paste0("/Users/kellyloria/Documents/UNR/Reaeration/MIMS_dat/processed_dat/")
+# 
+output_path <- paste0("/Users/kellyloria/Documents/UNR/Reaeration/MIMS_dat/processed_dat/")
 # write_csv(avgdData, paste0(output_path, saveFile))
 
 ####

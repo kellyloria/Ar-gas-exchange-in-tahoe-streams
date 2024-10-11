@@ -29,31 +29,36 @@ str(meta_dat)
             
 ## 3. Merge by SampleID 
 ar_data <- rawdat%>%
-  full_join(meta_dat, by = c("SampleID"))
+  full_join(meta_dat, by = c("SampleID")) %>%
+  filter(X40.Conc<2) # some outlier Ar from sample re-run
 
 ## Look at some values with distance from injection:
-ar_data %>%
-  filter(sample_type=="POST")%>%
-  ggplot(aes(x = station, y = X40.Conc, shape=sample_rep, color=as.factor(trial))) +
-  geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
-  facet_wrap(~ site)
-
-
-ar_data %>%
+plot_raw_ar<- ar_data %>%
   filter(sample_type=="POST")%>%
   ggplot(aes(x = station, y = X40.Conc, shape=sample_rep, color=as.factor(site))) +
   geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
-  facet_wrap(~ trial)
+  facet_wrap(~ trial) +
+  labs(x = "station distance (m)",
+       y = 'Ar concnetrations') +
+  scale_color_manual(values = c("#0b2549", "#daa520")) 
 
-ar_data %>%
+# ggsave("/Users/kellyloria/Documents/UNR/Reaeration/AR_raw_trials.png", plot = plot_raw_ar, width = 10, height = 6, units = "in")
+
+plot_raw_N2ar<-ar_data %>%
   filter(sample_type=="POST")%>%
   ggplot(aes(x = station, y = N2.Ar.Conc, shape=sample_rep, color=as.factor(site))) +
   geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
-  facet_wrap(~ trial)
+  facet_wrap(~ trial) +
+  labs(x = "station distance (m)",
+       y = 'N2:Ar concnetrations') +
+  scale_color_manual(values = c("#0b2549", "#daa520"))
+
+# ggsave("/Users/kellyloria/Documents/UNR/Reaeration/N2AR_raw_trials.png", plot = plot_raw_N2ar, width = 10, height = 6, units = "in")
+
 
 # Still trying to work out what "arncalc" should be for these trials. 
-
-ar_data$arncalc <- c(ar_data$X40.Conc)
+# N2.Ar.Conc for N2 to Ar
+ar_data$arncalc <- c(ar_data$X40)
 # compare with 1 and 2 pt standard curves
 
 ## 4. Calculate theoretical Ratio of Ar:N2 
@@ -97,8 +102,12 @@ ar_data_post<- ar_data%>%filter(sample_type=='POST')
 
 ### 5. Normalize for first well mixed station 
 ar_data_post <- ar_data_post %>%
+  filter(station_no > 0) %>%
   group_by(trial, site, date) %>%
-  mutate(norm_arncalc = arncalc / arncalc[station_no == 1]) %>%
+  mutate(
+    norm_arncalc_diff = arncalc - mean(arncalc[station_no == 1]), na.rm = TRUE,
+    norm_arncalc = norm_arncalc_diff / (max(arncalc, na.rm = TRUE) - min(arncalc, na.rm = TRUE))
+  ) %>%
   ungroup()
 
 hist(ar_data_post$norm_arncalc)
@@ -172,8 +181,6 @@ sink()
 ## Format data for model:
 ##   filter data to stations greater than 1 and correct distance 
 ar_data_post <- ar_data_post %>%
-  arrange(trial, station) %>%
-  filter(station > 0) %>%
   group_by(trial) %>%  
   mutate(dist = station - station[station_no == 1]) %>% 
   ungroup() 
@@ -202,20 +209,31 @@ str(arstandata)
 
 # ## Run the model:
 arfit <- stan(file = "W1_dist_Kt.stan", data = arstandata,
-              iter = 3000, chains = 3,
-              warmup = 1500, thin = 1)
+              iter = 5000, chains = 3,
+              warmup = 2500, thin = 1)
 
 fit_summary <- summary(arfit, probs=c(0.025,0.5,0.975))$summary %>% 
   {as_tibble(.) %>%
       mutate(var = rownames(summary(arfit)$summary))}
 
+
+# 10 trials so Kd
 plot(arfit)
+
+plot(arfit, pars = c("Kd[1]", "Kd[2]", "Kd[3]", "Kd[4]", "Kd[5]", 
+                     "Kd[6]", "Kd[7]", "Kd[8]", "Kd[9]", "Kd[10]"))
+
+plot(arfit, pars = c("KAr[1]", "KAr[2]", "KAr[3]", "KAr[4]", "KAr[5]", 
+                     "KAr[6]", "KAr[7]", "KAr[8]", "KAr[9]", "KAr[10]"))
+
+
 
 # Extract model parameters from output
 stan_samples <- rstan::extract(arfit)
 logK600_est <- apply(stan_samples$logK600, 2, mean)
 Kd_est <- apply(stan_samples$Kd, 2, mean)
 KAr_est <- apply(stan_samples$KAr, 2, mean)
+
 
 stan_summary <- as.data.frame(summary(arfit)$summary)
 
@@ -260,4 +278,31 @@ output_path_fit <- paste0("/Users/kellyloria/Documents/UNR/Reaeration/MIMS_dat/m
 ####
 # end of temp edit 
 ####
+
+## Extra figures
+
+hist(ar_data_post$norm_arncalc)
+
+
+plot_n2AR<- ar_data_post %>%
+  ggplot(aes(x = dist, y = norm_arncalc, shape=sample_rep, color=as.factor(site))) +
+  geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
+  facet_wrap(~ trial) +  
+  labs(x = "station distance (m)",
+       y = 'N2:Ar concnetrations normailized to station 1') +
+  scale_color_manual(values = c("#0b2549", "#daa520")) 
+
+# ggsave("/Users/kellyloria/Documents/UNR/Reaeration/N2AR_trials.png", plot = plot_n2AR, width = 10, height = 6, units = "in")
+
+
+plot_AR<- ar_data_post %>%
+  ggplot(aes(x = dist, y = norm_arncalc, shape=sample_rep, color=as.factor(site))) +
+  geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
+  facet_wrap(~ trial) +  
+  labs(x = "station distance (m)",
+       y = 'Ar concnetrations normailized to station 1') +
+  scale_color_manual(values = c("#0b2549", "#daa520")) 
+
+# ggsave("/Users/kellyloria/Documents/UNR/Reaeration/AR_trials.png", plot = plot_n2AR, width = 10, height = 6, units = "in")
+
 
