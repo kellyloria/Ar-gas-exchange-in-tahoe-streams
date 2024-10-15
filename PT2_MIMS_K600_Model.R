@@ -11,7 +11,7 @@ library(tidyr)
 # daily file info for saving:
 set.seed(2021)
 rundate <- format(Sys.Date(), "%y%m%d")
-file_name <- "Ar_prelim_fit"
+file_name <- "ArN2_prelim_fit"
 
 setwd("/Users/kellyloria/Documents/UNR/Reaeration/MIMS_dat/")
 source("/Users/kellyloria/Documents/UNR/Reaeration/AR_code_repo/mims_gas_functions_wHeKr.R")
@@ -58,7 +58,7 @@ plot_raw_N2ar<-ar_data %>%
 
 # Still trying to work out what "arncalc" should be for these trials. 
 # N2.Ar.Conc for N2 to Ar
-ar_data$arncalc <- c(ar_data$X40)
+ar_data$arncalc <- c(ar_data$X40.Conc/ar_data$X28.Conc)
 # compare with 1 and 2 pt standard curves
 
 ## 4. Calculate theoretical Ratio of Ar:N2 
@@ -105,8 +105,9 @@ ar_data_post <- ar_data_post %>%
   filter(station_no > 0) %>%
   group_by(trial, site, date) %>%
   mutate(
-    norm_arncalc_diff = arncalc - mean(arncalc[station_no == 1]), na.rm = TRUE,
-    norm_arncalc = norm_arncalc_diff / (max(arncalc, na.rm = TRUE) - min(arncalc, na.rm = TRUE))
+    norm_arncalc = arncalc / mean(arncalc[station_no == 1])
+    #norm_arncalc_diff = arncalc - mean(arncalc[station_no == 1]), na.rm = TRUE, # wrong normalization ?
+    #norm_arncalc = norm_arncalc_diff / (max(arncalc, na.rm = TRUE) - min(arncalc, na.rm = TRUE)) # wrong normalization ?
   ) %>%
   ungroup()
 
@@ -289,10 +290,10 @@ plot_n2AR<- ar_data_post %>%
   geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
   facet_wrap(~ trial) +  
   labs(x = "station distance (m)",
-       y = 'N2:Ar concnetrations normailized to station 1') +
+       y = 'Ar:N2 concnetrations normalized to station 1') +
   scale_color_manual(values = c("#0b2549", "#daa520")) 
 
-# ggsave("/Users/kellyloria/Documents/UNR/Reaeration/N2AR_trials.png", plot = plot_n2AR, width = 10, height = 6, units = "in")
+# ggsave("/Users/kellyloria/Documents/UNR/Reaeration/ARN2_trials.png", plot = plot_n2AR, width = 10, height = 6, units = "in")
 
 
 plot_AR<- ar_data_post %>%
@@ -300,9 +301,9 @@ plot_AR<- ar_data_post %>%
   geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
   facet_wrap(~ trial) +  
   labs(x = "station distance (m)",
-       y = 'Ar concnetrations normailized to station 1') +
+       y = 'Ar concnetrations normalized to station 1') +
   scale_color_manual(values = c("#0b2549", "#daa520")) 
 
-# ggsave("/Users/kellyloria/Documents/UNR/Reaeration/AR_trials.png", plot = plot_n2AR, width = 10, height = 6, units = "in")
+# ggsave("/Users/kellyloria/Documents/UNR/Reaeration/ARN2_trials.png", plot = plot_AR, width = 10, height = 6, units = "in")
 
 
