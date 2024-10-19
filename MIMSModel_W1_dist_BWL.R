@@ -11,7 +11,7 @@ library(tidyr)
 # daily file info for saving:
 set.seed(2021)
 rundate <- format(Sys.Date(), "%y%m%d")
-file_name <- "ArN2_prelim_fit"
+file_name <- "ArN_W1_dist_Kt_BWL"
 
 setwd("/Users/kellyloria/Documents/UNR/Reaeration/MIMS_dat/")
 source("/Users/kellyloria/Documents/UNR/Reaeration/AR_code_repo/mims_gas_functions_wHeKr.R")
@@ -26,79 +26,57 @@ str(rawdat)
 meta_dat <- read.csv("/Users/kellyloria/Documents/UNR/Reaeration/MIMS_dat/processed_dat/MIMS_SampleLog_24.csv") %>%
   mutate(SampleID=as.character(sampleID))
 str(meta_dat)
-            
+
+## Fix stream velocity to be in m^2 per day
+meta_dat$v <- c(meta_dat$v * 86400)
+
 ## 3. Merge by SampleID 
 ar_data <- rawdat%>%
-  full_join(meta_dat, by = c("SampleID")) %>%
-  filter(X40.Conc<2) # some outlier Ar from sample re-run
+  full_join(meta_dat, by = c("SampleID")) 
 
-## Look at some values with distance from injection:
-plot_raw_ar<- ar_data %>%
-  filter(sample_type=="POST")%>%
-  ggplot(aes(x = station, y = X40.Conc, shape=sample_rep, color=as.factor(site))) +
-  geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
-  facet_wrap(~ trial) +
-  labs(x = "station distance (m)",
-       y = 'Ar concnetrations') +
-  scale_color_manual(values = c("#0b2549", "#daa520")) 
-plot_raw_ar
+## 4. Select BWL
+ar_data_BWL <- ar_data %>%
+  filter(site=="BWL" & X40.Conc<2)
+str(ar_data_BWL)
 
-# ggsave("/Users/kellyloria/Documents/UNR/Reaeration/AR_raw_trials.png", plot = plot_raw_ar, width = 10, height = 6, units = "in")
-
-plot_raw_ArN2<-ar_data %>%
-  filter(sample_type=="POST")%>%
-  ggplot(aes(x = station, y = c(X40.Conc/X28.Conc), shape=sample_rep, color=as.factor(site))) +
-  geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
-  facet_wrap(~ trial) +
-  labs(x = "station distance (m)",
-       y = 'Ar:N2 concnetrations') +
-  scale_color_manual(values = c("#0b2549", "#daa520"))
-plot_raw_ArN2
-# ggsave("/Users/kellyloria/Documents/UNR/Reaeration/N2AR_raw_trials.png", plot = plot_raw_ArN2, width = 10, height = 6, units = "in")
-
-
-plot_raw_ArN2<-ar_data %>%
-  filter(sample_type=="POST")%>%
-  ggplot(aes(x = station, y = c(temp_C), shape=sample_rep, color=as.factor(site))) +
-  geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
-  facet_wrap(~ trial) +
-  labs(x = "station distance (m)",
-       y = 'Ar:N2 concnetrations') +
-  scale_color_manual(values = c("#0b2549", "#daa520"))
-plot_raw_ArN2
-
-## Still trying to work out what "arncalc" should be for these trials. 
-## Want the ratio of Ar to N2 
-ar_data$arncalc <- c(ar_data$X40.Conc/ar_data$X28.Conc)
-# compare with 1 and 2 pt standard curves
+ar_data_BWL$arncalc <- c(ar_data_BWL$X40.Conc/ar_data_BWL$X28.Conc)
 
 ## 4. Calculate theoretical Ratio of Ar:N2 
-ar_data$arnsat <- arsat(ar_data$temp_C,ar_data$pressure_Hg) / nsat(ar_data$temp_C,ar_data$pressure_Hg)
-ar_data %>%
-  filter(sample_type=="POST")%>%
+ar_data_BWL$arnsat <- arsat(ar_data_BWL$temp_C,ar_data_BWL$pressure_Hg) / nsat(ar_data_BWL$temp_C,ar_data_BWL$pressure_Hg)
+
+ar_data_BWL %>%
+  filter(sample_type=="POST" & station_no >2)%>%
+  ggplot(aes(x = station, y = X40.Conc, shape=sample_rep, color=as.factor(site))) +
+  geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
+  facet_wrap(~ trial)
+
+ar_data_BWL %>%
+  filter(sample_type=="POST" & station_no >2)%>%
   ggplot(aes(x = station, y = arnsat, shape=sample_rep, color=as.factor(site))) +
   geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
   facet_wrap(~ trial)
 
 ## check out theoretical Ar
-ar_data$arsat <- arsat(ar_data$temp_C,ar_data$pressure_Hg) 
+ar_data_BWL$arsat <- arsat(ar_data_BWL$temp_C,ar_data_BWL$pressure_Hg) 
 
-ar_data %>%
-  filter(sample_type=="POST")%>%
-  ggplot(aes(x = station, y = arsat, shape=sample_rep, color=as.factor(site))) +
+ar_data_BWL %>%
+  filter(sample_type=="POST" & station_no >2)%>%
+  ggplot(aes(x = station, y = arncalc, shape=sample_rep, color=as.factor(site))) +
   geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
   facet_wrap(~ trial)
 
 ## check out theoretical N2
-ar_data$nsat <- nsat(ar_data$temp_C,ar_data$pressure_Hg) 
-ar_data %>%
+ar_data_BWL$nsat <- nsat(ar_data_BWL$temp_C, ar_data_BWL$pressure_Hg) 
+
+ar_data_BWL %>%
   filter(sample_type=="POST")%>%
   ggplot(aes(x = station, y = nsat, shape=sample_rep, color=as.factor(site))) +
   geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
   facet_wrap(~ trial)
 
 ## get some summary to get at % changes in Ar
-ar_data_sum <- ar_data%>%
+ar_data_BWL_sum <- ar_data_BWL%>%
+  filter(sample_type=="POST")%>%
   group_by(trial, site, date, sample_type) %>%
   summarise(
     arnsat_m = mean(arnsat, na.rm=T),
@@ -106,49 +84,43 @@ ar_data_sum <- ar_data%>%
     arsat_m = mean(arsat, na.rm=T)
   )
 
-ar_data_pre<- ar_data%>%filter(sample_type=='PRE ')
-ar_data_post<- ar_data%>%filter(sample_type=='POST')
+BW_data_post<- ar_data_BWL%>%filter(sample_type=='POST')
 
 ## Corrections for background Ar:N2
-ar_data_post$arcorr <- ar_data_post$arncalc - ar_data_post$arnsat
+BW_data_post$arn_corr <- BW_data_post$arncalc - BW_data_post$arnsat
+BW_data_post$ar_corr <- BW_data_post$X40.Conc - BW_data_post$arsat
+BW_data_post$n_corr <- BW_data_post$X28.Conc - BW_data_post$nsat
 
-# ## %. Now for calculations where we subtract background and correct for conductivity
-# 
-# ar_data_post %>%
-#   filter(sample_type=="POST")%>%
-#   ggplot(aes(x = station, y = arcorr, shape=sample_rep, color=as.factor(site))) +
-#   geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
-#   facet_wrap(~ trial)
 
-# ## Calc mean of all pre cond by station and by site
-# ardataprecond <- ar_data_pre %>%  
-#   group_by(trial, Station) %>%  # 
-#   summarise(precond=mean(SPC..uScm., na.rm=T)) # cond = SPC
-# 
-# ardatapost<-merge(ar_data_post,ardataprecond)
-# 
-# ardatapost$condcor<- ardatapost$SPC..uScm. - ardatapost$precond
-# hist(ardatapost$condcor)
-# 
-# ardatapost %>% 
-#   ggplot(aes(x = Station, y = condcor , color = sample_type, shape=sample_rep)) +
-#   geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
-#   facet_wrap(~ site)
-# ar_data_post$arcond<- ar_data_post$arcorr / ar_data_post$condcor
-#hist(ar_data_post$arcond)
+BW_data_post1<- BW_data_post %>% filter(station_no>2) 
+
+BW_data_postq <- BW_data_post1 %>%
+  filter(!(trial == 9 & station_no == 7 & sample_rep == "A"))
+
+BW_data_postq1 <- BW_data_postq %>%
+  filter(!(trial == 9 & station_no == 3 & sample_rep == "C"))
+
+BW_data_postq2 <- BW_data_postq1 %>%
+  filter(!(trial == 10 & station_no == 3 & sample_rep == "B"))
+
+BW_data_postq3 <- BW_data_postq2 %>%
+  filter(!(trial == 10 & station_no == 3 & sample_rep == "C"))
 
 ### 5. Normalize for first well mixed station 
-ar_data_post <- ar_data_post %>%
-  filter(station_no > 0) %>%
+BW_data_post_norm1 <- BW_data_postq3 %>% ## NOT trusting group_by...
   group_by(trial, site, date) %>%
   mutate(
-    norm_arncalc = arcorr / mean(arcorr[station_no == 1])
-    #norm_arncalc_diff = arncalc - mean(arncalc[station_no == 1]), na.rm = TRUE, # wrong normalization ?
-    #norm_arncalc = norm_arncalc_diff / (max(arncalc, na.rm = TRUE) - min(arncalc, na.rm = TRUE)) # wrong normalization ?
+    norm_arncalc = c(arn_corr / mean(arn_corr[station_no == 3], na.rm = TRUE)),
+    norm_ar_calc = c(ar_corr / mean(ar_corr[station_no == 3],na.rm = TRUE)), 
+    norm_n_calc = c(n_corr / mean(n_corr[station_no == 3],na.rm = TRUE))
   ) %>%
   ungroup()
 
-hist(ar_data_post$norm_arncalc)
+BW_data_post_norm1 %>%
+  ggplot(aes(x = station, y = norm_arncalc, shape=sample_rep, color=as.factor(site))) +
+  geom_line() +
+  geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
+  facet_wrap(~ trial)
 
 ### 6. Predict Ar based on exponential decay for downstream stations 
 ###################################
@@ -216,28 +188,43 @@ model {
 ,fill=TRUE)
 sink()
 
+
+
 ## Format data for model:
-##   filter data to stations greater than 1 and correct distance 
-ar_data_post <- ar_data_post %>%
+BW_data_post_norm1 <- BW_data_post_norm1 %>%
   group_by(trial) %>%  
-  mutate(dist = station - station[station_no == 1]) %>% 
-  ungroup() 
+  mutate(dist = station - station[station_no == 3])
+
+unique(BW_data_post_norm1$trial)
+
+BW_data_post_norm1 <- BW_data_post_norm1 %>%
+  mutate(trial = case_when(
+    trial == 3 ~ 1,
+    trial == 5 ~ 2,
+    trial == 7 ~ 3,
+    trial == 9 ~ 4,
+    trial == 10 ~ 5,
+    TRUE ~ NA_real_  # To handle any unexpected values
+  ))
+
+ar_data_post_q <- BW_data_post_norm1 
+  #rbind(GB_data_post_norm, BW_data_post_norm1)
 
 arstandata <- list(
-  N = nrow(ar_data_post),  # total number of observations
-  nexpt = length(unique(ar_data_post$trial)),  # number of experiments (trials)
-  exptID = ar_data_post$trial,  # experiment IDs
-  dist = ar_data_post$dist,  # distance of each station
-  Ar = ar_data_post$norm_arncalc,  # normalized argon proportion
-  Q = ar_data_post %>%
+  N = nrow(ar_data_post_q),  # total number of observations
+  nexpt = length(unique(ar_data_post_q$trial)),  # number of experiments (trials)
+  exptID = ar_data_post_q$trial,  # experiment IDs
+  dist = ar_data_post_q$dist,  # distance of each station
+  Ar = ar_data_post_q$norm_arncalc,  # normalized argon proportion
+  Q = ar_data_post_q %>%
     group_by(trial) %>%
     summarize(Q = first(Q_cms)) %>%
     pull(Q),  # discharge per experiment
-  V = ar_data_post %>%
+  V = ar_data_post_q %>%
     group_by(trial) %>%
     summarize(V = first(v)) %>%
     pull(V),  # water velocity per experiment
-  temp = ar_data_post %>%
+  temp = ar_data_post_q %>%
     group_by(trial) %>%
     summarize(temp = first(temp_C)) %>%
     pull(temp)  # temperature per experiment
@@ -245,10 +232,11 @@ arstandata <- list(
 # Check the list structure
 str(arstandata)
 
-## Run the model:
+# Run the model:
 arfit <- stan(file = "W1_dist_Kt.stan", data = arstandata,
               iter = 5000, chains = 3,
-              warmup = 2500, thin = 1)
+              warmup = 2500, thin = 1,
+              control = list(adapt_delta = 0.95))
 
 fit_summary <- summary(arfit, probs=c(0.025,0.5,0.975))$summary %>% 
   {as_tibble(.) %>%
@@ -258,11 +246,9 @@ fit_summary <- summary(arfit, probs=c(0.025,0.5,0.975))$summary %>%
 # 10 trials so Kd
 plot(arfit)
 
-plot(arfit, pars = c("Kd[1]", "Kd[2]", "Kd[3]", "Kd[4]", "Kd[5]", 
-                     "Kd[6]", "Kd[7]", "Kd[8]", "Kd[9]", "Kd[10]"))
+plot(arfit, pars = c("Kd[1]", "Kd[2]", "Kd[3]", "Kd[4]", "Kd[5]"))
 
-plot(arfit, pars = c("KAr[1]", "KAr[2]", "KAr[3]", "KAr[4]", "KAr[5]", 
-                     "KAr[6]", "KAr[7]", "KAr[8]", "KAr[9]", "KAr[10]"))
+plot(arfit, pars = c("KAr[1]", "KAr[2]", "KAr[3]", "KAr[4]", "KAr[5]"))
 
 
 
@@ -279,12 +265,13 @@ stan_summary <- as.data.frame(summary(arfit)$summary)
 stan_results <- data.frame(
   trial = 1:length(logK600_est),  # assuming trial is indexed from 1 to nexpt
   logK600 = logK600_est,
+  K600 = exp(logK600_est),
   Kd = Kd_est,
   KAr = KAr_est
 )
 
 # Summarize metadata by trial
-trial_metadata <- ar_data_post %>%
+trial_metadata <- BW_data_post_norm1 %>%
   group_by(trial) %>%
   summarize(
     date = first(date),
