@@ -39,6 +39,20 @@ ar_data_BWL <- ar_data %>%
   filter(site=="BWL" & X40.Conc<2)
 str(ar_data_BWL)
 
+ar_data_BWL %>%
+  filter(sample_type=="POST")%>%
+  ggplot(aes(x = station, y = X40.Conc, shape=sample_rep, color=as.factor(site))) +
+  geom_line() + geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
+  facet_wrap(~ trial) # station 3 might be the better well mixed zone
+
+
+ar_data_BWL %>%
+  filter(sample_type=="POST" & station_no>2)%>%
+  ggplot(aes(x = station, y = X40.Conc, shape=sample_rep, color=as.factor(site))) +
+  geom_line() + geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
+  facet_wrap(~ trial) # station 2 might be the better well mixed zone
+
+
 ar_data_BWL$arncalc <- c(ar_data_BWL$X40.Conc/ar_data_BWL$X28.Conc)
 
 ## 4. Calculate theoretical Ratio of Ar:N2 
@@ -47,31 +61,24 @@ ar_data_BWL$arnsat <- arsat(ar_data_BWL$temp_C,ar_data_BWL$pressure_Hg) / nsat(a
 ar_data_BWL %>%
   filter(sample_type=="POST" & station_no >2)%>%
   ggplot(aes(x = station, y = X40.Conc, shape=sample_rep, color=as.factor(site))) +
-  geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
+  geom_point(size=1, alpha=0.75) +   geom_line()+ theme_bw() + theme(legend.position = "right") +
   facet_wrap(~ trial)
 
 ar_data_BWL %>%
   filter(sample_type=="POST" & station_no >2)%>%
   ggplot(aes(x = station, y = arnsat, shape=sample_rep, color=as.factor(site))) +
-  geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
+  geom_point(size=1, alpha=0.75) +  geom_line()+ theme_bw() + theme(legend.position = "right") +
   facet_wrap(~ trial)
 
 ## check out theoretical Ar
 ar_data_BWL$arsat <- arsat(ar_data_BWL$temp_C,ar_data_BWL$pressure_Hg) 
-
-ar_data_BWL %>%
-  filter(sample_type=="POST" & station_no >2)%>%
-  ggplot(aes(x = station, y = arncalc, shape=sample_rep, color=as.factor(site))) +
-  geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
-  facet_wrap(~ trial)
-
-## check out theoretical N2
+##  theoretical N2
 ar_data_BWL$nsat <- nsat(ar_data_BWL$temp_C, ar_data_BWL$pressure_Hg) 
 
 ar_data_BWL %>%
   filter(sample_type=="POST")%>%
   ggplot(aes(x = station, y = nsat, shape=sample_rep, color=as.factor(site))) +
-  geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
+  geom_point(size=1, alpha=0.75) + geom_line()+ theme_bw() + theme(legend.position = "right") +
   facet_wrap(~ trial)
 
 ## get some summary to get at % changes in Ar
@@ -91,7 +98,13 @@ BW_data_post$arn_corr <- BW_data_post$arncalc - BW_data_post$arnsat
 BW_data_post$ar_corr <- BW_data_post$X40.Conc - BW_data_post$arsat
 BW_data_post$n_corr <- BW_data_post$X28.Conc - BW_data_post$nsat
 
+BW_data_post %>%
+  filter(sample_type=="POST" & station_no>2)%>%
+  ggplot(aes(x = station, y = arn_corr, shape=sample_rep, color=as.factor(site))) +
+  geom_point(size=1, alpha=0.75) + geom_line()+ theme_bw() + theme(legend.position = "right") +
+  facet_wrap(~ trial)
 
+# Possibly not enough AR at the first two Blackwood trials 
 BW_data_post1<- BW_data_post %>% filter(station_no>2) 
 
 BW_data_postq <- BW_data_post1 %>%

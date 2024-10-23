@@ -39,8 +39,20 @@ ar_data_GBL <- ar_data %>%
   filter(site=="GBL")
 str(ar_data_GBL)
 
+ar_data_GBL %>%
+  filter(sample_type=="POST")%>%
+  ggplot(aes(x = station, y = X40.Conc, shape=sample_rep, color=as.factor(site))) +
+  geom_line() + geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
+  facet_wrap(~ trial)
+
 ar_data_GBL$arncalc <- c(ar_data_GBL$X40.Conc/ar_data_GBL$X28.Conc)
 # compare with 1 and 2 pt standard curves
+
+ar_data_GBL %>%
+  filter(sample_type=="POST")%>%
+  ggplot(aes(x = station, y = arncalc, shape=sample_rep, color=as.factor(site))) +
+  geom_line() + geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
+  facet_wrap(~ trial)
 
 ## 4. Calculate theoretical Ratio of Ar:N2 
 ar_data_GBL$arnsat <- arsat(ar_data_GBL$temp_C,ar_data_GBL$pressure_Hg) / nsat(ar_data_GBL$temp_C,ar_data_GBL$pressure_Hg)
@@ -48,16 +60,15 @@ ar_data_GBL$arnsat <- arsat(ar_data_GBL$temp_C,ar_data_GBL$pressure_Hg) / nsat(a
 ar_data_GBL %>%
   filter(sample_type=="POST")%>%
   ggplot(aes(x = station, y = arnsat, shape=sample_rep, color=as.factor(site))) +
-  geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
+  geom_line() + geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
   facet_wrap(~ trial)
-
 
 ## check out theoretical Ar
 ar_data_GBL$arsat <- arsat(ar_data_GBL$temp_C,ar_data_GBL$pressure_Hg) 
 
 ar_data_GBL %>%
   filter(sample_type=="POST")%>%
-  ggplot(aes(x = station, y = arsat, shape=sample_rep, color=as.factor(site))) +
+  ggplot(aes(x = station, y = arncalc, shape=sample_rep, color=as.factor(site))) +
   geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
   facet_wrap(~ trial)
 
@@ -78,6 +89,10 @@ GLB_data_post$arn_corr <- GLB_data_post$arncalc - GLB_data_post$arnsat
 GLB_data_post$ar_corr <- GLB_data_post$X40.Conc - GLB_data_post$arsat
 GLB_data_post$n_corr <- GLB_data_post$X28.Conc - GLB_data_post$nsat
 
+GLB_data_post %>%
+  ggplot(aes(x = station, y = arn_corr, shape=sample_rep, color=as.factor(site))) +
+  geom_line()+ geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
+  facet_wrap(~ trial)
 
 GLB_data_postq <- GLB_data_post %>%
   filter(!(trial == 2 & station_no == 1 & sample_rep == "C"))
@@ -95,9 +110,10 @@ GLB_data_post_q <- GLB_data_postq %>%
 
 GLB_data_post_q %>%
   ggplot(aes(x = station, y = norm_arncalc, shape=sample_rep, color=as.factor(site))) +
-  geom_line() +
-  geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
-  facet_wrap(~ trial)
+  geom_line() + geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
+  facet_wrap(~ trial) 
+
+## might not have worked station 6 looks bad 
 
 
 ################
@@ -175,6 +191,7 @@ GB_data_post_norm <- GLB_data_post_q %>%
 
 unique(GB_data_post_norm$trial)
 
+# re-name the trial 1-5 
 GB_data_post_norm <- GB_data_post_norm %>%
   mutate(trial = case_when(
     trial == 1 ~ 1,
@@ -262,7 +279,8 @@ trial_metadata <- GB_data_post_norm %>%
 
 # Merge the Stan results with metadata
 merged_results <- trial_metadata %>%
-  left_join(stan_results, by = "trial")
+  left_join(stan_results, by = "trial") 
+# trial 6 is now trial 4 
 
 # save fits?
 ## Export model fit
