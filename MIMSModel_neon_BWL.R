@@ -11,7 +11,7 @@ library(tidyr)
 # daily file info for saving:
 set.seed(2021)
 rundate <- format(Sys.Date(), "%y%m%d")
-file_name <- "ArN_NEON_dist_Kt_BWL"
+file_name <- "ArN_NEON_dist_Kt_BWL_small"
 
 setwd("/Users/kellyloria/Documents/UNR/Reaeration/MIMS_dat/")
 source("/Users/kellyloria/Documents/UNR/Reaeration/AR_code_repo/mims_gas_functions_wHeKr.R")
@@ -119,8 +119,15 @@ BW_data_postq2 <- BW_data_postq1 %>%
 BW_data_postq3 <- BW_data_postq2 %>%
   filter(!(trial == 10 & station_no == 3 & sample_rep == "C"))
 
+BW_data_postq4 <- BW_data_postq3 %>%
+  filter(!(trial == 5))
+
+BW_data_postq5 <- BW_data_postq4 %>%
+  filter(!(trial == 3))
+
+
 ### 5. Normalize for first well mixed station 
-BW_data_post_norm1 <- BW_data_postq3 %>% ## NOT trusting group_by...
+BW_data_post_norm1 <- BW_data_postq5 %>% ## NOT trusting group_by...
   group_by(trial, site, date) %>%
   mutate(
     norm_arncalc = c(arn_corr / mean(arn_corr[station_no == 3], na.rm = TRUE)),
@@ -281,11 +288,11 @@ unique(BW_data_post_norm1$trial)
 
 BW_data_post_norm1 <- BW_data_post_norm1 %>%
   mutate(trial = case_when(
-    trial == 3 ~ 1,
-    trial == 5 ~ 2,
-    trial == 7 ~ 3,
-    trial == 9 ~ 4,
-    trial == 10 ~ 5,
+    #trial == 3 ~ 1,
+    #trial == 5 ~ 2,
+    trial == 7 ~ 1,
+    trial == 9 ~ 2,
+    trial == 10 ~ 3,
     TRUE ~ NA_real_  # To handle any unexpected values
   ))
 
@@ -332,9 +339,9 @@ fit_summary <- summary(arfit, probs=c(0.025,0.5,0.975))$summary %>%
 # 10 trials so Kd
 plot(arfit)
 
-plot(arfit, pars = c("Kd[1]", "Kd[2]", "Kd[3]", "Kd[4]", "Kd[5]"))
+plot(arfit, pars = c("Kd[1]", "Kd[2]", "Kd[3]"))
 
-plot(arfit, pars = c("KAr[1]", "KAr[2]", "KAr[3]", "KAr[4]", "KAr[5]"))
+plot(arfit, pars = c("KAr[1]", "KAr[2]", "KAr[3]"))
 
 
 
@@ -391,29 +398,118 @@ output_path_fit <- paste0("/Users/kellyloria/Documents/UNR/Reaeration/MIMS_dat/m
 # end of temp edit 
 ####
 
-## Extra figures
-hist(ar_data_post$norm_arncalc)
 
 
-plot_n2AR<- ar_data_post %>%
-  ggplot(aes(x = dist, y = log(norm_arncalc+1), shape=sample_rep, color=as.factor(site))) +
-  geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
-  facet_wrap(~ trial) +  
-  labs(x = "station distance (m)",
-       y = 'Ar:N2 concnetrations normalized to station 1') +
-  scale_color_manual(values = c("#0b2549", "#daa520")) 
 
-# ggsave("/Users/kellyloria/Documents/UNR/Reaeration/ARN2_trials.png", plot = plot_n2AR, width = 10, height = 6, units = "in")
+##################
+# Step 1: Extract model parameters from arfit
+stan_samples <- rstan::extract(arfit)
+logK600_est <- apply(stan_samples$logK600, 2, mean)  # Mean logK600 per trial
+Kd_est <- apply(stan_samples$Kd, 2, mean)            # Mean Kd per trial
+KAr_est <- apply(stan_samples$KAr, 2, mean)          # Mean KAr per trial
+intercept_est <- mean(stan_samples$intercept)        # Mean intercept
+sigma_est <- mean(stan_samples$sigma)                # Mean sigma
 
+# Step 2: Organize the data by site and trial
+unique_trials <- unique(ar_data_post_q[, c("site", "trial")])
 
-plot_AR<- ar_data_post %>%
-  ggplot(aes(x = dist, y = norm_arncalc, shape=sample_rep, color=as.factor(site))) +
-  geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
-  facet_wrap(~ trial) +  
-  labs(x = "station distance (m)",
-       y = 'Ar concnetrations normalized to station 1') +
-  scale_color_manual(values = c("#0b2549", "#daa520")) 
+# Function to predict Ar values based on the distance and other parameters
+predict_Ar <- function(initial_Ar, Kd, dist_diff) {
+  # Predict the downstream Ar concentration based on the model equation
+  Ar_predicted <- initial_Ar * exp(-Kd * dist_diff)
+  return(Ar_predicted)
+}
 
-# ggsave("/Users/kellyloria/Documents/UNR/Reaeration/ARN2_trials.png", plot = plot_AR, width = 10, height = 6, units = "in")
+# Step 3: Generate predictive Ar values iteratively for each station in each trial
+results <- list()
+for (i in 1:nrow(unique_trials)) {
+  current_site <- unique_trials$site[i]
+  current_trial <- unique_trials$trial[i]
+  
+  # Filter the data for the current site and trial
+  trial_data <- ar_data_post_q %>%
+    filter(site == current_site, trial == current_trial) %>%
+    arrange(dist)
+  
+  # Initialize predicted Ar values
+  trial_data$Ar_predicted <- NA
+  initial_Ar <- trial_data$norm_arncalc[1]  # Assuming the first station provides the initial Ar
+  
+  # Get estimated Kd for the current trial
+  Kd <- Kd_est[current_trial]
+  
+  # Predict Ar values for each station sequentially
+  trial_data$Ar_predicted[1] <- initial_Ar
+  for (j in 2:nrow(trial_data)) {
+    dist_diff <- trial_data$dist[j] - trial_data$dist[j-1]  # Distance between stations
+    # Predict Ar based on the previous station's Ar value
+    trial_data$Ar_predicted[j] <- predict_Ar(trial_data$Ar_predicted[j-1], Kd, dist_diff)
+  }
+  
+  # Extract posterior predictive samples to calculate the 95% credible interval
+  Ar_samples <- matrix(NA, nrow = length(stan_samples$Kd[, current_trial]), ncol = nrow(trial_data))
+  Ar_samples[, 1] <- initial_Ar
+  for (j in 2:nrow(trial_data)) {
+    dist_diff <- trial_data$dist[j] - trial_data$dist[j-1]
+    Ar_samples[, j] <- Ar_samples[, j-1] * exp(-stan_samples$Kd[, current_trial] * dist_diff)
+  }
+  
+  # Calculate the 95% credible interval
+  trial_data$Ar_lower <- apply(Ar_samples, 2, quantile, probs = 0.025)
+  trial_data$Ar_upper <- apply(Ar_samples, 2, quantile, probs = 0.975)
+  
+  # Store the results for this trial
+  results[[paste(current_site, current_trial, sep = "_")]] <- trial_data
+}
 
+# Step 4: Combine the results into a single dataframe
+all_results <- do.call(rbind, results)
+
+## exponential decay for observed plots 
+all_results1 <- all_results %>%
+  group_by(trial) %>%
+  mutate(
+    # Fit the exponential decay model: norm_arncalc = a * exp(-b * dist)
+    exp_model = list(nls(norm_arncalc ~ a * exp(-b * dist), 
+                         start = list(a = max(norm_arncalc), b = 0.01))),
+    # Get fitted values from the model
+    norm_arncalc_fitted = predict(exp_model[[1]])
+  ) %>%
+  ungroup()
+
+# Calculate RMSE for each trial
+rmse_results <- all_results1 %>%
+  group_by(trial) %>%
+  summarize(
+    RMSE = round(sqrt(mean((norm_arncalc - Ar_predicted)^2, na.rm = TRUE)),3)
+  )
+
+all_results2 <- all_results1 %>%
+  left_join(rmse_results, by = "trial")
+
+# Step 5: Plot observed vs. predicted Argon concentrations with 95% credible interval
+BW_plot <- ggplot(all_results2, aes(x = dist, y = norm_arncalc)) +
+  geom_point(aes(color = "Observed")) +
+  geom_line(aes(y = norm_arncalc_fitted, color = "Observed")) +
+  geom_point(aes(y = Ar_predicted, color = "Predicted")) +
+  geom_line(aes(y = Ar_predicted, color = "Predicted")) +
+  geom_ribbon(aes(ymin = Ar_lower, ymax = Ar_upper), alpha = 0.3, fill = "#b81212") + 
+  xlim(0,110) +
+  facet_wrap(~ trial, scales = "free_x") +
+  labs(title = "Blackwood creek",
+       x = "Distance (m)",
+       y = "Normalized argon concentration") +
+  theme_bw() +
+  scale_color_manual(values = c("Observed" = "#1a4791", "Predicted" = "#b81212"))+
+  # Add RMSE annotations
+  geom_text(
+    data = rmse_results,
+    aes(x = Inf, y = Inf, label = paste("RMSE:", RMSE)),
+    hjust = 1.1, vjust = 1.1,
+    size = 3,
+    color = "black",
+    inherit.aes = FALSE
+  )
+
+## ggsave("/Users/kellyloria/Documents/UNR/Reaeration/BWL_neon_fit_small.png", plot = BW_plot, width = 8, height = 3, units = "in")
 
