@@ -11,7 +11,7 @@ library(tidyr)
 # daily file info for saving:
 set.seed(2021)
 rundate <- format(Sys.Date(), "%y%m%d")
-file_name <- "ArN_NEON_dist_Kt_BWL_small"
+file_name <- "ArN_NEON_dist_Kt_BWL_NP"
 
 setwd("/Users/kellyloria/Documents/UNR/Reaeration/MIMS_dat/")
 source("/Users/kellyloria/Documents/UNR/Reaeration/AR_code_repo/mims_gas_functions_wHeKr.R")
@@ -125,7 +125,6 @@ BW_data_postq4 <- BW_data_postq3 %>%
 BW_data_postq5 <- BW_data_postq4 %>%
   filter(!(trial == 3))
 
-
 ### 5. Normalize for first well mixed station 
 BW_data_post_norm1 <- BW_data_postq5 %>% ## NOT trusting group_by...
   group_by(trial, site, date) %>%
@@ -142,134 +141,83 @@ BW_data_post_norm1 %>%
   geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
   facet_wrap(~ trial)
 
+
+
+BW_data_trial3 <- BW_data_post %>%
+  filter((trial == 3))
+
+BW_data_trial3a <- BW_data_trial3 %>%
+  filter(!(station_no == 0 & sample_rep == "A"))
+
+BW_data_trial3b <- BW_data_trial3a %>%
+  filter(!(station_no == 1))
+BW_data_trial3c <- BW_data_trial3b %>%
+  filter(!(station_no == 2))
+
+### Quick check for 3 
+BW_data_post_normtemp <- BW_data_trial3c %>% ## NOT trusting group_by...
+  group_by(trial, site, date) %>%
+  mutate(
+    norm_arncalc = c(arn_corr / mean(arn_corr[station_no == 0], na.rm = TRUE)),
+    norm_ar_calc = c(ar_corr / mean(ar_corr[station_no == 0],na.rm = TRUE)), 
+    norm_n_calc = c(n_corr / mean(n_corr[station_no == 0],na.rm = TRUE))
+  ) %>%
+  ungroup()
+
+BW_data_post_normtemp %>%
+  ggplot(aes(x = station, y = norm_arncalc, shape=sample_rep, color=as.factor(site))) +
+  geom_line() +
+  geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
+  facet_wrap(~ trial)
+
+
 ### 6. Predict Ar based on exponential decay for downstream stations 
 ###################################
-## Stan model
-sink("W1_dist_Kt.stan")
-
-cat("
-      
-data {
-  int<lower = 1> N;
-  int<lower = 1> nexpt;
-  int<lower = 1> exptID[N]; // indicator variable for expt
-  vector[N] dist;
-  vector[N] Ar; //proportion relative to upstreammost sampling station
-  vector[nexpt] Q;
-  vector[nexpt] V;
-  vector [nexpt] temp;/// one value for each stream temp to convert to K600
-  //vector[nexpt] w; 
-  
-}
-
-parameters {
-  vector [nexpt] logK600;
-  real intercept; //very close to 0
-  real<lower = 0> sigma; //  standard deviation
-  real a; // real <lower = 0> a;
-  real b;
-  real <lower = 0> sigma_expt;
-  
-  
-}
-
-
-transformed parameters{
-  
-  vector <lower=0> [nexpt] Kd;
-  vector <lower=0> [nexpt] KAr;
-  
-  for (j in 1: nexpt){  // make a loop here
-  KAr[j] = exp(logK600[j]) /  ((600/(1759.7-(117.37*temp[j])+(3.6959*temp[j]^2)-(0.046527*temp[j]^3)))^-0.5); 
-  }
-  
-  Kd= KAr ./ V;  //KAr (1/day) / V (m/day) = Kd (1/m)
-  
-  
-}
-
-model {
-  for (i in 1:N){
-    Ar[i] ~ normal(intercept * exp(-Kd[exptID[i]]*dist[i]), sigma); // normal likelihood represnets MIMS error well
-  }
-  
-  for (j in 1:nexpt){
-    logK600[j]~normal( a + b*log(Q[j]) , sigma_expt); //next level model. Power model.
-  }
-  
-  a ~ normal(0,10);
-  b ~ normal(0,1);
-  sigma_expt ~ normal (0,2);
-  sigma ~ normal (0,0.2);  // added prior on sigma
-  intercept ~ normal (0, 0.1); // working with proportions so strong prior on intercept
-}
-
-    "
-,fill=TRUE)
-sink()
-
-
-
-################
-## Stan model
-sink("NEON_multi_Ar.stan")
+## Stan model where experiments are no longer pooled :
+sink("NEON_Ar_no_pool.stan")
 
 cat("
 data {
-  int<lower = 1> N;
-  int<lower = 1> nexpt;
-  int<lower = 1> exptID[N];
-  vector[N] dist;
-  vector[N] Ar; // need logAr
-  vector[nexpt] Q;
-  vector[nexpt] V;
-  vector [nexpt] temp; // one value for each stream temp to convert to K600
-  vector[nexpt] w; 
-  
+  int<lower = 1> N;               // Number of observations for the current experiment
+  int<lower = 1> nexpt;           // Current experiment index (should always be 1 in this setup)
+  vector[N] dist;                 // Distance observations
+  vector[N] Ar;                   // Observed Ar (e.g., log-transformed)
+  real Q;                         // Discharge for the current experiment
+  real V;                         // Velocity for the current experiment
+  real temp;                      // Stream temperature (for K600 calculation)
+  real w;                         // Other data related to the experiment
 }
-
-
 
 parameters {
-  vector [nexpt] logK600;
-  real intercept; //very close to 0
-  real<lower = 0> sigma; //  standard deviation
-  real a; // real <lower = 0> a;
-  real b;
-  real <lower = 0> sigma_expt;
-  
-  
+  real logK600;                   // Log-transformed K600 for the current experiment
+  real intercept;                 // Intercept for the Ar ~ distance relationship
+  real<lower = 0> sigma;          // Standard deviation for likelihood
+  real a;                         // Regression parameter for log(Q)
+  real b;                         // Regression slope for log(Q)
+  real<lower = 0> sigma_expt;     // Standard deviation for experiment-specific logK600
 }
 
+transformed parameters {
+  real<lower = 0> Kd;             // Kd (1/m) for the current experiment
+  real<lower = 0> KAr;            // KAr (1/day) for the current experiment
 
-transformed parameters{
-  vector <lower=0> [nexpt] Kd;
-  vector <lower=0> [nexpt] KAr;
-  
-  for (j in 1: nexpt){  // make a loop here // very these smitts 
-    KAr[j] = exp(logK600[j]) /  ((600/(1759.7-(117.37*temp[j])+(3.6959*temp[j]^2)-(0.046527*temp[j]^3)))^-0.5); 
-  }
-  
-  Kd= KAr ./ V;  //KAr (1/day) / V (m/day) = Kd (1/m)
-  
-  
+  KAr = exp(logK600) / ((600 / (1759.7 - (117.37 * temp) + (3.6959 * temp^2) - (0.046527 * temp^3)))^-0.5);
+  Kd = KAr / V;                   // KAr (1/day) divided by V (m/day)
 }
 
 model {
-  for (i in 1:N){
-    Ar[i] ~ normal(intercept + -Kd[exptID[i]]*dist[i], sigma); // likelihood 
-    // if you know travel time you solve for travel time here instead of distance 
+  // Likelihood for Ar observations
+  for (i in 1:N) {
+    Ar[i] ~ normal(intercept + -Kd * dist[i], sigma);
   }
-  
-  for (j in 1:nexpt){
-    logK600[j]~normal( a + b*log(Q[j]) , sigma_expt);
-  }
-  
-  a ~ normal(0,10);
-  b ~ normal(0,1);
-  sigma_expt ~ normal (0,2);
-  sigma ~ normal (0,0.2);  // added prior on sigma
-  intercept ~ normal (0, 0.1); // working with proportions so strong prior on intercept
+
+  // Priors
+  logK600 ~ normal(a + b * log(Q), sigma_expt);
+  a ~ normal(0, 10);
+  b ~ normal(0, 1);
+  sigma_expt ~ normal(0, 2);
+  sigma ~ normal(0, 0.2);
+  intercept ~ normal(0, 0.1);
 }
     "
 ,fill=TRUE)
@@ -286,47 +234,58 @@ BW_data_post_norm1 <- BW_data_post_norm1 %>%
 
 unique(BW_data_post_norm1$trial)
 
-BW_data_post_norm1 <- BW_data_post_norm1 %>%
+BW_data_post_7 <- BW_data_post_norm1 %>%
+  group_by(trial) %>%  
+  filter(trial==7)  %>%
   mutate(trial = case_when(
-    #trial == 3 ~ 1,
-    #trial == 5 ~ 2,
-    trial == 7 ~ 1,
-    trial == 9 ~ 2,
-    trial == 10 ~ 3,
-    TRUE ~ NA_real_  # To handle any unexpected values
-  ))
+    trial == 7 ~ 1,  
+    TRUE ~ NA_real_ ))
 
-ar_data_post_q <- BW_data_post_norm1 
-  #rbind(GB_data_post_norm, BW_data_post_norm1)
+BW_data_post_9 <- BW_data_post_norm1 %>%
+  group_by(trial) %>%  
+  filter(trial==9)  %>%
+  mutate(trial = case_when(
+    trial == 9 ~ 1,  
+    TRUE ~ NA_real_ ))
 
-arstandata <- list(
-  N = nrow(ar_data_post_q),  # total number of observations
-  nexpt = length(unique(ar_data_post_q$trial)),  # number of experiments (trials)
-  exptID = ar_data_post_q$trial,  # experiment IDs
-  dist = ar_data_post_q$dist,  # distance of each station
-  Ar = ar_data_post_q$norm_arncalc,  # normalized argon proportion
-  Q = ar_data_post_q %>%
-    group_by(trial) %>%
-    summarize(Q = first(Q_cms)) %>%
-    pull(Q),  # discharge per experiment
-  V = ar_data_post_q %>%
-    group_by(trial) %>%
-    summarize(V = first(v)) %>%
-    pull(V),  # water velocity per experiment
-  temp = ar_data_post_q %>%
-    group_by(trial) %>%
-    summarize(temp = first(temp_C)) %>%
-    pull(temp),  # temperature per experiment
-  w = ar_data_post_q %>%
-    group_by(trial) %>%
-    summarize(w = first(w)) %>%
-    pull(w) 
+
+
+BW_data_post_10 <- BW_data_post_norm1 %>%
+  group_by(trial) %>%  
+  filter(trial==10)  %>%
+  mutate(trial = case_when(
+    trial == 10 ~ 1,  
+    TRUE ~ NA_real_ ))
+
+
+BW_data_post_normtemp <- BW_data_post_normtemp %>%
+  group_by(trial) %>%  
+  mutate(dist = station - station[station_no == 0])
+
+BW_data_post_3 <- BW_data_post_normtemp %>%
+  group_by(trial) %>%  
+  filter(trial==3)  %>%
+  mutate(trial = case_when(
+    trial == 3 ~ 1,  
+    TRUE ~ NA_real_ ))
+
+
+
+stan_data3 <- list(
+  N = nrow(BW_data_post_3),
+  nexpt = 1,
+  dist = BW_data_post_3$dist,
+  Ar = BW_data_post_3$norm_arncalc,
+  Q = first(BW_data_post_3$Q_cms),
+  V = first(BW_data_post_3$v),
+  temp = first(BW_data_post_3$temp_C),
+  w = first(BW_data_post_3$w)
 )
-# Check the list structure
-str(arstandata)
+
+
 
 # Run the model:
-arfit <- stan(file = "NEON_multi_Ar.stan", data = arstandata,
+arfit <- stan(file = "NEON_Ar_no_pool.stan", data = stan_data3,
               iter = 5000, chains = 3,
               warmup = 2500, thin = 1,
               control = list(adapt_delta = 0.95))
@@ -339,17 +298,12 @@ fit_summary <- summary(arfit, probs=c(0.025,0.5,0.975))$summary %>%
 # 10 trials so Kd
 plot(arfit)
 
-plot(arfit, pars = c("Kd[1]", "Kd[2]", "Kd[3]"))
-
-plot(arfit, pars = c("KAr[1]", "KAr[2]", "KAr[3]"))
-
-
 
 # Extract model parameters from output
 stan_samples <- rstan::extract(arfit)
-logK600_est <- apply(stan_samples$logK600, 2, mean)
-Kd_est <- apply(stan_samples$Kd, 2, mean)
-KAr_est <- apply(stan_samples$KAr, 2, mean)
+logK600_est <- apply(stan_samples$logK600, 1, mean)
+Kd_est <- apply(stan_samples$Kd, 1, mean)
+KAr_est <- apply(stan_samples$KAr, 1, mean)
 
 
 stan_summary <- as.data.frame(summary(arfit)$summary)
@@ -364,7 +318,7 @@ stan_results <- data.frame(
 )
 
 # Summarize metadata by trial
-trial_metadata <- BW_data_post_norm1 %>%
+trial_metadata <- BW_data_post_3 %>%
   group_by(trial) %>%
   summarize(
     date = first(date),
@@ -388,15 +342,12 @@ output_path <- paste0("")
 output_path_sum <- paste0("/Users/kellyloria/Documents/UNR/Reaeration/MIMS_dat/model_data/K_Model_sum/")
 output_path_fit <- paste0("/Users/kellyloria/Documents/UNR/Reaeration/MIMS_dat/model_data/K_Model_fits")
 
+# extra label for pooling 
+trial_name <- c("Trial3")
 # save model full output
-# saveRDS(arfit, paste0(output_path_fit,"/",file_name,"_K_estimates_",rundate,"_.rds"))
-# write_csv(fit_summary, paste0(output_path_sum,"/",file_name,"_K_estimates_",rundate,".csv"))
-# write_csv(merged_results, paste0(output_path_sum,"/",file_name,"_K_metadata_",rundate,".csv"))
-
-
-####
-# end of temp edit 
-####
+# saveRDS(arfit, paste0(output_path_fit,"/",file_name,trial_name,"_K_estimates_",rundate,"_.rds"))
+# write_csv(fit_summary, paste0(output_path_sum,"/",file_name,trial_name,"_K_estimates_",rundate,".csv"))
+# write_csv(merged_results, paste0(output_path_sum,"/",file_name,trial_name,"_K_metadata_",rundate,".csv"))
 
 
 
@@ -404,14 +355,14 @@ output_path_fit <- paste0("/Users/kellyloria/Documents/UNR/Reaeration/MIMS_dat/m
 ##################
 # Step 1: Extract model parameters from arfit
 stan_samples <- rstan::extract(arfit)
-logK600_est <- apply(stan_samples$logK600, 2, mean)  # Mean logK600 per trial
-Kd_est <- apply(stan_samples$Kd, 2, mean)            # Mean Kd per trial
-KAr_est <- apply(stan_samples$KAr, 2, mean)          # Mean KAr per trial
+logK600_est <- apply(stan_samples$logK600, 1, mean)  # Mean logK600 per trial
+Kd_est <- apply(stan_samples$Kd, 1, mean)            # Mean Kd per trial
+KAr_est <- apply(stan_samples$KAr, 1, mean)          # Mean KAr per trial
 intercept_est <- mean(stan_samples$intercept)        # Mean intercept
 sigma_est <- mean(stan_samples$sigma)                # Mean sigma
 
 # Step 2: Organize the data by site and trial
-unique_trials <- unique(ar_data_post_q[, c("site", "trial")])
+unique_trials <- unique(BW_data_post_3[, c("site", "trial")])
 
 # Function to predict Ar values based on the distance and other parameters
 predict_Ar <- function(initial_Ar, Kd, dist_diff) {
@@ -420,16 +371,18 @@ predict_Ar <- function(initial_Ar, Kd, dist_diff) {
   return(Ar_predicted)
 }
 
-# Step 3: Generate predictive Ar values iteratively for each station in each trial
+# List to store results
 results <- list()
+
+# Loop through unique trials to process one site and trial at a time
 for (i in 1:nrow(unique_trials)) {
   current_site <- unique_trials$site[i]
   current_trial <- unique_trials$trial[i]
   
   # Filter the data for the current site and trial
-  trial_data <- ar_data_post_q %>%
+  trial_data <- BW_data_post_3 %>%
     filter(site == current_site, trial == current_trial) %>%
-    arrange(dist)
+    arrange(.data$dist) # Explicitly reference column `dist`
   
   # Initialize predicted Ar values
   trial_data$Ar_predicted <- NA
@@ -441,26 +394,28 @@ for (i in 1:nrow(unique_trials)) {
   # Predict Ar values for each station sequentially
   trial_data$Ar_predicted[1] <- initial_Ar
   for (j in 2:nrow(trial_data)) {
-    dist_diff <- trial_data$dist[j] - trial_data$dist[j-1]  # Distance between stations
+    dist_diff <- trial_data$dist[j] - trial_data$dist[j - 1]  # Distance between stations
     # Predict Ar based on the previous station's Ar value
-    trial_data$Ar_predicted[j] <- predict_Ar(trial_data$Ar_predicted[j-1], Kd, dist_diff)
+    trial_data$Ar_predicted[j] <- predict_Ar(trial_data$Ar_predicted[j - 1], Kd, dist_diff)
   }
   
   # Extract posterior predictive samples to calculate the 95% credible interval
-  Ar_samples <- matrix(NA, nrow = length(stan_samples$Kd[, current_trial]), ncol = nrow(trial_data))
+  Ar_samples <- matrix(NA, nrow = nrow(stan_samples$Kd), ncol = nrow(trial_data))
   Ar_samples[, 1] <- initial_Ar
   for (j in 2:nrow(trial_data)) {
-    dist_diff <- trial_data$dist[j] - trial_data$dist[j-1]
-    Ar_samples[, j] <- Ar_samples[, j-1] * exp(-stan_samples$Kd[, current_trial] * dist_diff)
+    dist_diff <- trial_data$dist[j] - trial_data$dist[j - 1]
+    Ar_samples[, j] <- Ar_samples[, j - 1] * exp(-stan_samples$Kd * dist_diff)
   }
   
   # Calculate the 95% credible interval
-  trial_data$Ar_lower <- apply(Ar_samples, 2, quantile, probs = 0.025)
+  trial_data$Ar_lower <- apply(Ar_samples, 2, quantile, probs = 0.025) # Note column-based quantiles
   trial_data$Ar_upper <- apply(Ar_samples, 2, quantile, probs = 0.975)
   
   # Store the results for this trial
   results[[paste(current_site, current_trial, sep = "_")]] <- trial_data
 }
+
+######
 
 # Step 4: Combine the results into a single dataframe
 all_results <- do.call(rbind, results)
@@ -496,7 +451,7 @@ BW_plot <- ggplot(all_results2, aes(x = dist, y = norm_arncalc)) +
   geom_ribbon(aes(ymin = Ar_lower, ymax = Ar_upper), alpha = 0.3, fill = "#b81212") + 
   xlim(0,110) +
   facet_wrap(~ trial, scales = "free_x") +
-  labs(title = "Blackwood creek",
+  labs(title = "Blackwood creek exp 3",
        x = "Distance (m)",
        y = "Normalized argon concentration") +
   theme_bw() +
@@ -511,5 +466,7 @@ BW_plot <- ggplot(all_results2, aes(x = dist, y = norm_arncalc)) +
     inherit.aes = FALSE
   )
 
-## ggsave("/Users/kellyloria/Documents/UNR/Reaeration/BWL_neon_fit_small.png", plot = BW_plot, width = 8, height = 3, units = "in")
+## ggsave("/Users/kellyloria/Documents/UNR/Reaeration/BWL_neon_fit_T03_bad.png", plot = BW_plot, width = 5, height = 3.75, units = "in")
 
+summary(all_results$Ar_lower)
+summary(all_results$Ar_upper)
