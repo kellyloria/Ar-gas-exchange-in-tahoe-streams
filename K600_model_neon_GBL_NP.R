@@ -1,32 +1,31 @@
+##==================================
+## Models for the 5 trials at GBL:
+##==================================
 ## Merges clean MIMS data with injection meta data
-## Re-worked from Hall and Madinger: Use of argon to measure gas exchange in turbulent mountain streams
+##  Re-worked from Hall and Madinger: Use of argon to measure gas exchange in turbulent mountain streams
+##  "NP" refers to not pooled where each trial at the Reach GBL was modeled independently
 
-## CODE for not pooled sites. 
-## So model the sites one at a time:
+packages <- c("rstan", "shinystan", "ggplot2", "readr", "tidyr")
+lapply(packages, library, character.only = TRUE)
 
-library(rstan)
-library(shinystan)
-library(ggplot2)
-library(dplyr)
-library(readr)
-library(tidyr)
-
-# daily file info for saving:
+###
+## Daily file info for saving and model comparison:
 set.seed(2021)
 rundate <- format(Sys.Date(), "%y%m%d")
-file_name <- "ArN_NEON_dist_Kt_GBL"
+file_name <- "ArN_NEON_dist_Kt_GBL_NP"
 
-setwd("/Users/kellyloria/Documents/UNR/Reaeration/MIMS_dat/")
-source("/Users/kellyloria/Documents/UNR/Reaeration/AR_code_repo/mims_gas_functions_wHeKr.R")
+source("./AR_code_repo/mims_gas_functions_wHeKr.R")
 ###
 
+##==================================
 ## 1. Read in processed MIMS data for Ar 
-files <- list.files(paste("/Users/kellyloria/Documents/UNR/Reaeration/MIMS_dat/processed_dat/Merged_processed_dat",sep=""), full.names = T)
+files <- list.files(paste("./MIMS_dat/processed_dat/Merged_processed_dat",sep=""), full.names = T)
 rawdat <-  do.call(rbind, lapply
                    (files, read.csv, as.is=T, header = T))
 str(rawdat)
-## 2. meta data for each trial location, time,  station distance etc.
-meta_dat <- read.csv("/Users/kellyloria/Documents/UNR/Reaeration/MIMS_dat/processed_dat/MIMS_SampleLog_24.csv") %>%
+
+## 2. Read in meta data for each trial location, time,  station distance etc.
+meta_dat <- read.csv("./MIMS_dat/processed_dat/MIMS_SampleLog_24.csv") %>%
   mutate(SampleID=as.character(sampleID))
 str(meta_dat)
 
@@ -37,19 +36,21 @@ meta_dat$v <- c(meta_dat$v * 86400)
 ar_data <- rawdat%>%
   full_join(meta_dat, by = c("SampleID")) 
 
+##==================================
 ## 4. Select GLB
 ar_data_GBL <- ar_data %>%
   filter(site=="GBL")
 str(ar_data_GBL)
 
+## Visualize Ar at different trials
 ar_data_GBL %>%
   filter(sample_type=="POST")%>%
   ggplot(aes(x = station, y = X40.Conc, shape=sample_rep, color=as.factor(site))) +
   geom_line() + geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
   facet_wrap(~ trial)
 
+## 4. Calculate observed Ratio of Ar:N2 
 ar_data_GBL$arncalc <- c(ar_data_GBL$X40.Conc/ar_data_GBL$X28.Conc)
-# compare with 1 and 2 pt standard curves
 
 ar_data_GBL %>%
   filter(sample_type=="POST")%>%
@@ -57,7 +58,7 @@ ar_data_GBL %>%
   geom_line() + geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
   facet_wrap(~ trial)
 
-## 4. Calculate theoretical Ratio of Ar:N2 
+## 5. Calculate theoretical Ratio of Ar:N2 
 ar_data_GBL$arnsat <- arsat(ar_data_GBL$temp_C,ar_data_GBL$pressure_Hg) / nsat(ar_data_GBL$temp_C,ar_data_GBL$pressure_Hg)
 
 ar_data_GBL %>%
@@ -66,16 +67,16 @@ ar_data_GBL %>%
   geom_line() + geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
   facet_wrap(~ trial)
 
-## check out theoretical Ar
-ar_data_GBL$arsat <- arsat(ar_data_GBL$temp_C,ar_data_GBL$pressure_Hg) 
-
 ar_data_GBL %>%
   filter(sample_type=="POST")%>%
   ggplot(aes(x = station, y = arncalc, shape=sample_rep, color=as.factor(site))) +
   geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
   facet_wrap(~ trial)
 
-## check out theoretical N2
+## check out theoretical Ar
+ar_data_GBL$arsat <- arsat(ar_data_GBL$temp_C,ar_data_GBL$pressure_Hg) 
+
+## Calculate theoretical Ar 
 ar_data_GBL$nsat <- nsat(ar_data_GBL$temp_C, ar_data_GBL$pressure_Hg) 
 
 ar_data_GBL %>%
@@ -97,6 +98,8 @@ GLB_data_post %>%
   geom_line()+ geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
   facet_wrap(~ trial)
 
+##==================================
+## Adjust trials for replicate noise and distance of first "well-mixed" station
 GLB_data_postq <- GLB_data_post %>%
   filter(!(trial == 2 & station_no == 1 & sample_rep == "C"))
 
@@ -118,7 +121,8 @@ GLB_data_postq4 %>%
   geom_line()+ geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
   facet_wrap(~ trial)
 
-### 5. Normalize for first well mixed station 
+##==================================
+### 6. Normalize for first well mixed station 
 GLB_data_post_proc <- GLB_data_postq4 %>%
   filter(station_no>0) %>%
   group_by(trial, site, date) %>%
@@ -133,14 +137,9 @@ GLB_data_post_proc %>%
   ggplot(aes(x = station, y = norm_arncalc, shape=sample_rep, color=as.factor(site))) +
   geom_line() + geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
   facet_wrap(~ trial) 
+  ## might not have worked station 6 looks bad 
 
-## might not have worked station 6 looks bad 
-
-
-###
-###
-
-### 5. Normalize for first well mixed station 
+### Normalize for first well mixed station 
 GLB_data_post_proc_2 <- GLB_data_postq4 %>%
   filter(trial == 2) %>%
   filter(station_no > 1) %>%
@@ -157,9 +156,7 @@ GLB_data_post_proc_2 %>%
   geom_line() + geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
   facet_wrap(~ trial) 
 
-
-
-### 5. Normalize for first well mixed station 
+### Normalize for first well mixed station 
 
 GLB_data_t6 <- GLB_data_post %>%
   filter((trial == 6 & station_no > 2))
@@ -183,63 +180,12 @@ GLB_data_post_proc_6 %>%
   geom_line() + geom_point(size=1, alpha=0.75) + theme_bw() + theme(legend.position = "right") +
   facet_wrap(~ trial) 
 
-################
-## Stan model
-sink("NEON_NP_Ar.stan")
-
-cat("data {
-  int<lower = 1> N; // Number of observations
-  vector[N] dist;   // Distances for the single trial
-  vector[N] Ar;     // Argon measurements (log-transformed if needed)
-  real Q;           // Discharge for the trial
-  real V;           // Velocity for the trial
-  real temp;        // Temperature for the trial (used for converting to K600)
-}
-
-parameters {
-  real logK600;           // log-transformed K600 parameter
-  real intercept;         // Intercept parameter, close to 0
-  real<lower = 0> sigma;  // Standard deviation of the residuals
-  real a;                 // Coefficient for the relationship with log(Q)
-  real b;                 // Slope for the relationship with log(Q)
-}
-
-transformed parameters {
-  real<lower=0> Kd;       // Decay rate per distance
-  real<lower=0> KAr;      // Argon exchange coefficient
-
-  // Calculate KAr based on temperature and logK600
-  KAr = exp(logK600) / ((600 / (1759.7 - 117.37 * temp + 3.6959 * temp^2 - 0.046527 * temp^3))^-0.5);
-
-  // Calculate Kd as KAr divided by velocity
-  Kd = KAr / V;  // KAr (1/day) / V (m/day) = Kd (1/m)
-}
-
-model {
-  // Likelihood for the Argon measurements
-  for (i in 1:N) {
-    Ar[i] ~ normal(intercept + -Kd * dist[i], sigma);
-  }
-
-  // Prior for the logK600 parameter
-  logK600 ~ normal(a + b * log(Q), 1); // Use a prior that reflects the relationship with log(Q)
-
-  // Priors for the other parameters
-  a ~ normal(0, 10);
-  b ~ normal(0, 1);
-  sigma ~ normal(0, 0.2);     // Prior on sigma
-  intercept ~ normal(0, 0.1); // Prior on intercept
-}
-"
-,fill=TRUE)
-sink()
-
-
-
-#@@@@@###
-
-### 6. Predict Ar based on exponential decay for downstream stations 
-###################################
+##==================================
+### 7. Predict Ar based on exponential decay for downstream stations 
+## model "NEON_Ar_no_pool.stan" developed in Aho et al. 2024: Gas exchange velocities (k600), gas 
+##    exchange rates (K600), and hydraulic geometries for streams and rivers 
+##    derived from the NEON Reaeration field and lab collection data product 
+##==================================
 ## Stan model where experiments are no longer pooled :
 sink("NEON_Ar_no_pool.stan")
 
@@ -290,10 +236,7 @@ model {
 ,fill=TRUE)
 sink()
 
-
-
-#################
-
+##==================================
 ## Format data for model:
 GLB_data_post_norm <- GLB_data_post_proc %>%
   group_by(trial) %>%  
@@ -315,7 +258,6 @@ GW_data_post_2 <- GLB_data_post_norm %>%
     trial == 2 ~ 1,  
     TRUE ~ NA_real_ ))
 
-
 GW_data_post_4 <- GLB_data_post_norm %>%
   group_by(trial) %>%  
   filter(trial==4)  %>%
@@ -330,7 +272,6 @@ GW_data_post_8 <- GLB_data_post_norm %>%
     trial == 8 ~ 1,  
     TRUE ~ NA_real_ ))
 
-
 GLB_data_norm_2 <- GLB_data_post_proc_2 %>%
   group_by(trial) %>%
   mutate(dist = station - station[station_no == 2])
@@ -341,9 +282,6 @@ GB_data_post_2 <- GLB_data_norm_2 %>%
   mutate(trial = case_when(
     trial == 2 ~ 1,
     TRUE ~ NA_real_ ))
-
-# GLB_data_post_proc_6
-
 
 GLB_data_norm_6 <- GLB_data_post_proc_6 %>%
   group_by(trial) %>%
@@ -356,7 +294,8 @@ GB_data_post_6 <- GLB_data_norm_6 %>%
     trial == 6 ~ 1,
     TRUE ~ NA_real_ ))
 
-
+##==================================
+## get data in list form for stan:
 stan_data3 <- list(
   N = nrow(GB_data_post_6),
   nexpt = 1,
@@ -368,18 +307,17 @@ stan_data3 <- list(
   w = first(GB_data_post_6$w)
 )
 
+##==================================
 
+## 8. Run the model:
+# arfit <- stan(file = "NEON_Ar_no_pool.stan", data = stan_data3,
+#               iter = 5000, chains = 3,
+#               warmup = 2500, thin = 1,
+#               control = list(adapt_delta = 0.95))
 
-# Run the model:
-arfit <- stan(file = "NEON_Ar_no_pool.stan", data = stan_data3,
-              iter = 5000, chains = 3,
-              warmup = 2500, thin = 1,
-              control = list(adapt_delta = 0.95))
-##########
-#@@@@@###
+##==================================
 
-#################
-
+## Get model summary
 fit_summary <- summary(arfit, probs=c(0.025,0.5,0.975))$summary %>% 
   {as_tibble(.) %>%
       mutate(var = rownames(summary(arfit)$summary))}
@@ -387,27 +325,25 @@ fit_summary <- summary(arfit, probs=c(0.025,0.5,0.975))$summary %>%
 plot(arfit)
 
 
+## Rough plot of fit:
+plot(arfit)
 
-
-# Extract model parameters from output
+## Extract model parameters from output
 stan_samples <- rstan::extract(arfit)
 logK600_est <- apply(stan_samples$logK600, 1, mean)
 Kd_est <- apply(stan_samples$Kd, 1, mean)
 KAr_est <- apply(stan_samples$KAr, 1, mean)
 
-
-stan_summary <- as.data.frame(summary(arfit)$summary)
-
-# Create a dataframe for the Stan results
+##  Create a dataframe for the Stan results
 stan_results <- data.frame(
-  trial = 1:length(logK600_est),  # assuming trial is indexed from 1 to nexpt
+  trial = 1:length(logK600_est),  # trial is indexed from 1 to nexpt
   logK600 = logK600_est,
   K600 = exp(logK600_est),
   Kd = Kd_est,
   KAr = KAr_est
 )
 
-# Summarize metadata by trial
+## Summarize metadata by trial
 trial_metadata <- GB_data_post_6 %>%
   group_by(trial) %>%
   summarize(
@@ -419,18 +355,18 @@ trial_metadata <- GB_data_post_6 %>%
     v = first(v)
   )
 
-# Merge the Stan results with metadata
+## Merge the Stan results with metadata
 merged_results <- trial_metadata %>%
   left_join(stan_results, by = "trial")
-
-# save fits?
+##==================================
+## save fits?
 ## Export model fit
 ##==================================
 # export path
 # getwd()
 output_path <- paste0("")
-output_path_sum <- paste0("/Users/kellyloria/Documents/UNR/Reaeration/MIMS_dat/model_data/K_Model_sum/")
-output_path_fit <- paste0("/Users/kellyloria/Documents/UNR/Reaeration/MIMS_dat/model_data/K_Model_fits")
+output_path_sum <- paste0("./MIMS_dat/model_data/K_Model_sum/")
+output_path_fit <- paste0("./MIMS_dat/model_data/K_Model_fits")
 
 # extra label for pooling 
 trial_name <- c("GBL_Trial_6")
@@ -442,8 +378,12 @@ trial_name <- c("GBL_Trial_6")
 
 
 
-##################
-# Step 1: Extract model parameters from arfit
+#################################################################
+## Plot predicted verse observed Ar:N2 at stations 
+##  to validate model fit
+#################################################################
+###
+## Extract model parameters from arfit
 stan_samples <- rstan::extract(arfit)
 logK600_est <- apply(stan_samples$logK600, 1, mean)  # Mean logK600 per trial
 Kd_est <- apply(stan_samples$Kd, 1, mean)            # Mean Kd per trial
@@ -451,20 +391,20 @@ KAr_est <- apply(stan_samples$KAr, 1, mean)          # Mean KAr per trial
 intercept_est <- mean(stan_samples$intercept)        # Mean intercept
 sigma_est <- mean(stan_samples$sigma)                # Mean sigma
 
-# Step 2: Organize the data by site and trial
+## Organize the data by site and trial
 unique_trials <- unique(GB_data_post_6[, c("site", "trial")])
 
-# Function to predict Ar values based on the distance and other parameters
+## Function to predict Ar values based on the distance and other parameters
 predict_Ar <- function(initial_Ar, Kd, dist_diff) {
   # Predict the downstream Ar concentration based on the model equation
   Ar_predicted <- initial_Ar * exp(-Kd * dist_diff)
   return(Ar_predicted)
 }
 
-# List to store results
+## List to store results
 results <- list()
 
-# Loop through unique trials to process one site and trial at a time
+## Loop through unique trials to process one site and trial at a time
 for (i in 1:nrow(unique_trials)) {
   current_site <- unique_trials$site[i]
   current_trial <- unique_trials$trial[i]
@@ -476,7 +416,7 @@ for (i in 1:nrow(unique_trials)) {
   
   # Initialize predicted Ar values
   trial_data$Ar_predicted <- NA
-  initial_Ar <- trial_data$norm_arncalc[1]  # Assuming the first station provides the initial Ar
+  initial_Ar <- trial_data$norm_arncalc[1]  # the first station provides the initial Ar
   
   # Get estimated Kd for the current trial
   Kd <- Kd_est[current_trial]
@@ -506,8 +446,7 @@ for (i in 1:nrow(unique_trials)) {
 }
 
 ######
-
-# Step 4: Combine the results into a single dataframe
+## Combine the results into a single dataframe
 all_results <- do.call(rbind, results)
 
 ## exponential decay for observed plots 
@@ -522,7 +461,7 @@ all_results1 <- all_results %>%
   ) %>%
   ungroup()
 
-# Calculate RMSE for each trial
+## Calculate RMSE for each trial
 rmse_results <- all_results1 %>%
   group_by(trial) %>%
   summarize(
@@ -532,7 +471,7 @@ rmse_results <- all_results1 %>%
 all_results2 <- all_results1 %>%
   left_join(rmse_results, by = "trial")
 
-# Step 5: Plot observed vs. predicted Argon concentrations with 95% credible interval
+## Plot observed vs. predicted Argon concentrations with 95% credible interval
 GB_plot <- ggplot(all_results2, aes(x = dist, y = norm_arncalc)) +
   geom_point(aes(color = "Observed")) +
   geom_line(aes(y = norm_arncalc_fitted, color = "Observed")) +
@@ -558,7 +497,4 @@ GB_plot <- ggplot(all_results2, aes(x = dist, y = norm_arncalc)) +
 
 GB_plot
 
-## ggsave("/Users/kellyloria/Documents/UNR/Reaeration/GBL_neon_fit_T06.png", plot = GB_plot, width = 5, height = 3.75, units = "in")
-
-summary(all_results$Ar_lower)
-summary(all_results$Ar_upper)
+## ggsave("./Reaeration/GBL_neon_fit_T06.png", plot = GB_plot, width = 5, height = 3.75, units = "in")

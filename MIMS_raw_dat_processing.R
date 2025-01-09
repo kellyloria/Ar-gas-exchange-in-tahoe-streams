@@ -1,10 +1,7 @@
 # KAL made minor edits from Bob Hall et al. workflow 2024-10
 
-library(readxl)
-library(readr)
-library(dplyr)
-
-# setwd("Users/kellyloria/Documents/UNR/Reaeration/MIMS_dat/")
+packages <- c("readxl", "readr", "dplyr")
+lapply(packages, library, character.only = TRUE)
 
 ## MIMs metadata for selecting parameter data:
 MIMSdata <- "Metadat_argon_241003.xlsx"
@@ -25,9 +22,9 @@ pressure <- "inHg"
 rawFile <- "Raw_argon_241003.csv"
 
 ## name to save processed data:
-saveFile <- "proc_241003_v2.csv"
+saveFile <- "proc_241003.csv"
 
-source("/Users/kellyloria/Documents/UNR/Reaeration/AR_code_repo/mims_gas_functions_wHeKr.R")
+source("./AR_code_repo/mims_gas_functions_wHeKr.R")
 
 ##########################################################################################
 #Formats and reads in the raw files in the best manner for the gather_data function
@@ -281,7 +278,7 @@ if(length(failTargs) > 0){
 ## Saves data to a csv file:
 ##    Check save file name for each save:
 # 
-output_path <- paste0("/Users/kellyloria/Documents/UNR/Reaeration/MIMS_dat/processed_dat/")
+output_path <- paste0("./MIMS_dat/processed_dat/")
 # write_csv(avgdData, paste0(output_path, saveFile))
 
 ####
